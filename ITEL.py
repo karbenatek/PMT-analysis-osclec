@@ -99,7 +99,7 @@ class ITEL():
             for i in range(15):
                 sleep(2)
                 print("HV = %4.3f V" %self.hv.getVoltage(), end="\r")
-
+    #
     def scanTHRrates(self, THR = [60, 80, 100, 120, 140], n = 10): #scans dark rates for thresholds in THR
         THR = []
         for i in range(4,10):
