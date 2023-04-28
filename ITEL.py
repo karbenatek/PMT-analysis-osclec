@@ -13,6 +13,13 @@ from matplotlib import pyplot as plt
 from threading import Thread, Lock
 from queue import Queue
 import math
+from os import mkdir
+
+time_format = "-%d-%m-%Y-%H-%M-%S"
+# pd.DataFrame(calib).to_csv("calibration/Tenzo_calibration-%s.csv" %datetime.now().strftime("%d-%m-%Y-%H-%M-%S"),index_label="i", header=["Voltage [V]","Force [N]"])
+
+def getTimeStamp():
+    return  datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
 
 class RC():
     def __init__(self, SerialPort):
@@ -77,6 +84,7 @@ class ITEL():
         self.rc = RC(rc_SerialPort)
         self.daq = Serial(daq_SerialPort, 921600, timeout= 0.5)
         self.initDAQ()
+        self.limits = (250, 400)
 
 
         print(self.hv.readMonRegisters())
@@ -99,7 +107,7 @@ class ITEL():
             for i in range(15):
                 sleep(2)
                 print("HV = %4.3f V" %self.hv.getVoltage(), end="\r")
-    #
+
     def scanTHRrates(self, THR = [60, 80, 100, 120, 140], n = 10): #scans dark rates for thresholds in THR
         THR = []
         for i in range(4,10):
@@ -137,8 +145,7 @@ class ITEL():
         self.DAQlock.acquire()
         self.DAQqueue = Queue()
         self.DAQthread.start()
-        
-    
+ 
     def startDAQ(self):
         if self.DAQlock.locked():
             self.DAQrunning = "run"
@@ -147,7 +154,6 @@ class ITEL():
         else:
             print("DAQ thread is aleready running")
 
-    
     def stopDAQ(self):
         if not self.DAQlock.locked():
             self.DAQrunning = "idle"
@@ -169,7 +175,7 @@ class ITEL():
             self.DAQlock.release()
 
             while self.DAQrunning != "done":
-                sleep(0.1)
+                sleep(0.2)
         else:
             print("Other process is running on DAQ thread.")
     
@@ -373,7 +379,8 @@ class ITEL():
                                 buffer_array.append((int((single_event[2] << 13))+int((single_event[3] >> 2)))*5)  # time coarse
                                 buffer_array.append(((single_event[4] >> 5) & 0x003f)*5)  # tot coarse
                                 #if((single_event[1]!=31) and ((single_event[4] & 0x001f)!=31)):
-                                if(single_event[1] != 31):
+                                if(single_event[1] != 31 and (int(((single_event[3] << 3) & 0x001f))+int(single_event[4] >> 11)) != 31):
+                                    # print((int(((single_event[3] << 3) & 0x001f))+int(single_event[4] >> 11)), single_event[1])
                                     buffer_array.append(tfine_cal[single_event[1], (int(((single_event[3] << 3) & 0x001f))+int(single_event[4] >> 11))])  # time fine calibrated
                                     buffer_array.append(totfine_cal[single_event[1], single_event[4] & 0x001f])  # tot fine calibrated
                                     buffer_array.append((int((single_event[2] << 13))+int((single_event[3] >> 2)))*5-tfine_cal[single_event[1], (int(((single_event[3] << 3) & 0x001f))+int(single_event[4] >> 11))])  # event time = t_coarse- t_fine
@@ -428,10 +435,11 @@ class ITEL():
 
                 else:
                     data_s = data_s + chr(line)
+
     def scanTHRspectra(self, THR = [20, 40, 60, 80, 100, 120, 140]):
-        limits = (250, 400)
         itel.rampUp()
-        
+        directory = "data/scanTHRspectra_" + getTimeStamp()
+        mkdir(directory)
         for thr in THR:
             self.hv.setThreshold(thr)
             sleep(0.5)
@@ -447,9 +455,9 @@ class ITEL():
                 n = n+1
 
                 energy = int(itel.DAQqueue.get()[7])
-                if energy < limits[0]:
+                if energy < self.limits[0]:
                     nLeft += 1
-                elif energy > limits[1]:
+                elif energy > self.limits[1]:
                     nRight += 1
                 else:
                 # print(energy)
@@ -459,17 +467,55 @@ class ITEL():
             print(nLeft, "on the bellow,", nRight,"above limits")
             buffer = array(buffer)
             # hist = histogram(buffer)
-            plt.hist(buffer, bins=limits[1] - limits[0], range=limits, alpha=0.5, label = 'data', color='skyblue', ec='skyblue')
+            self.histogram = plt.hist(buffer, bins=self.limits[1] - self.limits[0], range=self.limits, alpha=0.5, label = 'data', color='skyblue', ec='skyblue')[0]
             plt.xlabel("Energy [ADC channels]",fontsize=10)
             plt.ylabel("Counts", fontsize=10)
             plt.title("Charge spectrum for threshold %i mV" %thr)
             # plt.show()
-            plt.savefig("DR3-thr%imV.png" %thr)
+            plt.savefig(directory + "/%imV.png" %thr)
+            pd.DataFrame(np.array(self.histogram)).to_csv(directory + "/%imV.csv" %thr ,index_label="i",header=["counts"])
             plt.cla()
+
+
+    def getSpectrum(self, n_Events = None, ACQ_time = None, OutFile = None , HV = 940, THR = 60):
+        # n_Events or ACQ_time has to be defined!
+        if (n_Events is None and ACQ_time is None) or (n_Events is not None and ACQ_time is not None):
+            print("Either n_Events or ACQ_time has to be defined.")
+            return 1
+        
+        self.hv.setThreshold(THR)
+        self.hv.setVoltageSet(HV)
+        self.rampUp()
+        buffer = []
+        if n_Events is not None:
+            self.getNevents(n_Events)
+
+        if ACQ_time is not None:
+            self.startDAQ()
+            sleep(ACQ_time)
+            self.stopDAQ()
+
+        while not itel.DAQqueue.empty():
+            buffer.append(int(itel.DAQqueue.get()[7]))
+
+        self.histogram = plt.hist(buffer, bins=self.limits[1] - self.limits[0], range=self.limits, alpha=0.5, label = 'data', color='skyblue', ec='skyblue')[0]
+        print(self.histogram[0])
+        plt.xlabel("Energy [ADC channels]",fontsize=10)
+        plt.ylabel("Counts", fontsize=10)
+        if OutFile is not None:
+            plt.savefig("%s.png" %OutFile)
+            pd.DataFrame(np.array(self.histogram)).to_csv("%s.csv" %OutFile ,index_label="i",header=["counts"])
+
+        plt.show()
+
 
 if __name__ == '__main__':
     itel = ITEL("/dev/itel_HV", 6, "/dev/itel_RC", "/dev/itel_DAQ")
-    # itel.scanTHR()
-    # itel.rampDown()
-    itel.scanTHRrates()
+    # itel.getSpectrum(ACQ_time= 4)
+    itel.getSpectrum(n_Events=4000, OutFile= "data/blind")
+    # itel.scanTHRspectra([40,80])
+    # itel.hv.setVoltageSet(940)
+    # itel.rampUp()
+    # itel.scanTHRrates()
+    # itel.scanTHRspectra()
     itel.killDAQ()
