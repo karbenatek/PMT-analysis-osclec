@@ -15,7 +15,7 @@ import cmd2
 import functools
 import getpass
 import struct
-import minimalmodmus
+# import minimalmodmus
 
 
 import time

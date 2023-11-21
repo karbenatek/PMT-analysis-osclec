@@ -75,10 +75,10 @@ def ACQ_TDC():
     t_end = time.time() + 60*5
     #print(ser)
     while time.time() < t_end:
-        #print(time.time())
+        print(time.time())
         for line in ser.read():
 
-            #print(line)
+            print(line)
 
             if line == 13:
 

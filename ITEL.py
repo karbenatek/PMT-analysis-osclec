@@ -97,6 +97,9 @@ class ITEL():
                 print("HV = %4.3f V" %self.hv.getVoltage(), end="\r")
 
     def rampUp(self):
+        """
+        Set HV on and block terminal until desired voltage is obtained
+        """
         if self.hv.getStatus() in [0, 1] and self.hv.getVoltage() < 200:
             print("Ramping up!")
             self.hv.powerOn()
@@ -118,7 +121,7 @@ class ITEL():
             THR.append(i*10)
         # print("Scanning for thresholds:", THR)
         DR = []
-        itel.rampUp()
+        self.rampUp()
 
         self.rc.setCh0(True)
         for thr in THR:
@@ -475,6 +478,7 @@ class ITEL():
             plt.savefig(directory + "/%imV.png" %thr)
             pd.DataFrame(np.array(self.histogram)).to_csv(directory + "/%imV.csv" %thr ,index_label="i",header=["counts"])
             plt.cla()
+        itel.rampDown()
 
 
     def getSpectrum(self, n_Events = None, ACQ_time = None, OutFile = None , HV = 940, THR = 60):
@@ -512,10 +516,11 @@ class ITEL():
 if __name__ == '__main__':
     itel = ITEL("/dev/itel_HV", 6, "/dev/itel_RC", "/dev/itel_DAQ")
     # itel.getSpectrum(ACQ_time= 4)
-    itel.getSpectrum(n_Events=4000, OutFile= "data/blind")
+    # itel.getSpectrum(n_Events=10000, OutFile= "mess/itel-test")
     # itel.scanTHRspectra([40,80])
     # itel.hv.setVoltageSet(940)
     # itel.rampUp()
+    itel.rampDown()
     # itel.scanTHRrates()
     # itel.scanTHRspectra()
     itel.killDAQ()
