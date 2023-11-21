@@ -1,0 +1,36 @@
+{
+	"hist": {
+		"bins": 80,
+		"max_ampl": 0.15,
+		"min_ampl": 0.003,
+		"cut_ratio": 0.5,
+		"thr": 0.003,
+		"Qtop": 20
+	},
+	"fit": {
+		"Q0": 0.2,
+		"Q0B": -5,
+		"Q0T": 5,
+		"sig0": 0.2,
+		"sig0B": 0,
+		"sig0T": 2,
+		"Q1": 2,
+		"Q1B": 0,
+		"Q1T": 8,
+		"sig1": 6,
+		"sig1B": 0,
+		"sig1T": 10,
+		"w": 0.9,
+		"wB": 0,
+		"wT": 1,
+		"alpha": 0.5,
+		"alphaB": 0,
+		"alphaT": 5,
+		"mu": 1.02,
+		"muB": 0,
+		"muT": 1
+	},
+	"TSA": {
+		"bins": 40
+	}
+}

@@ -1,0 +1,34 @@
+# [osclec_converter.darkpulses]
+# invert_polarity = true
+# threshold = 0
+# rawdata_directory = "mess/data"
+
+# [osclec_converter.singlephotons]
+# invert_polarity = true
+# threshold = 0
+# rawdata_directory = "mess/data"
+
+# [osclec_converter.afterpulses]
+# invert_polarity = true
+# threshold = 0
+# rawdata_directory = "mess/data"
+
+[pulse_analysis.singlephotons]
+bins = 40
+bins_noise = 200
+cut_fraction = 0.2
+threshold = 0.003
+max_ampl = 0.2
+
+# [pulse_analysis.darkpulses]
+# bins = 40
+# bins_noise = 200
+# cut_fraction = 0.2
+# threshold = 0.003
+# max_ampl = 0.2
+
+# [singlephoton_fit.singlephotons]
+
+# [darkrate.darkpulses]
+# sp_measurement_name = "singlephotons"
+# pe_threshold = 3

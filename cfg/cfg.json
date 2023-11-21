@@ -1,0 +1,9 @@
+{
+	"hist": {
+		"bins": 60,
+		"bins_noise": 200,
+		"cut_ratio": 0.15,
+		"thr": 0.003,
+		"Qtop": 0.2
+	}
+}
