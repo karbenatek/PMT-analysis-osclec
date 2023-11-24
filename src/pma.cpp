@@ -187,21 +187,33 @@ private:
     return std::find(recreated_files.begin(), recreated_files.end(),
                      fileName) != recreated_files.end();
   }
-  TDirectory *getDir(std::string MeasurementName, toml::table ParTable,
-                     std::string FileParName) {
-    fs::path filePath = cfgFileName.parent_path();
+  TDirectory *getDir(toml::table ParTable, std::string FileParName,
+                     std::string DirParName) {
+    /*
+    get TDirectory opened in read mode by parameter names for TFile and
+    TDirectory from parameter table
+    */
+    fs::path RootFilePath = cfgFileName.parent_path();
     if (ParTable[FileParName.c_str()].is_string())
-      filePath =
-          filePath.append(*ParTable[FileParName.c_str()].value<std::string>());
+      RootFilePath = RootFilePath.append(
+          *ParTable[FileParName.c_str()].value<std::string>());
+    else {
+      std::cerr << "Parameter " << FileParName
+                << " does not exist in config file" << std::endl;
+    }
+
+    std::string RootDirName;
+    if (ParTable[DirParName.c_str()].is_string())
+      RootDirName = *ParTable[DirParName.c_str()].value<std::string>();
     else {
       std::cerr << "Parameter " << FileParName
                 << " does not exist in config file" << std::endl;
     }
 
     // session
-    TFile *rootFile = getRootFile(filePath, false);
-    TDirectory *rootDir = getRootDir(rootFile, MeasurementName, false);
-    return rootDir;
+    TFile *RootFile = getRootFile(RootFilePath, false);
+    TDirectory *RootDir = getRootDir(RootFile, RootDirName, false);
+    return RootDir;
   }
 
   TDirectory *getDir(std::string MeasurementName, toml::table ParTable,
@@ -341,17 +353,15 @@ private:
       // parse parameters
       toml::table ParTable = *element.second.as_table();
       Double_t pe_threshold = *ParTable["pe_threshold"].value<Double_t>();
-      std::string spMeasurementName =
-          *ParTable["sp_measurement_name"].value<std::string>();
       drRootDir = getDir(MeasurementName, ParTable, false);
+      spRootDir = getDir(ParTable, "sp_file_path", "sp_measurement_name");
       outputRootDir = getDir(MeasurementName, ParTable, true);
-
-      getRootDir(TFile * rootFile, std::string directoryName) rootDir =
-          getRootDir(rootFile, MeasurementName);
-      TDirectory *sprootDir = getRootDir(rootFile, spMeasurementName);
-      pmanalysis::GetDarkRate(rootDir, sprootDir, pe_threshold);
-      sprootDir->Clear();
-      rootDir->Clear();
+      exit(0);
+      pmanalysis::GetDarkRate(drRootDir, spRootDir, outputRootDir,
+                              pe_threshold);
+      drRootDir->GetFile()->Close();
+      spRootDir->GetFile()->Close();
+      outputRootDir->GetFile()->Close();
     }
   }
 

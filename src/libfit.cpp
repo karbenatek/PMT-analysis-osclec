@@ -109,15 +109,15 @@ void FindExtrPts(TH1D *h_Q0, TH1D *h_Qs, TH1D *h_dQ, Pts *pts,
   // exit(0);
 
   cout << "i_Q0 = " << pts->i_Q0 << endl;
-  int i = pts->i_Q0;
+  int i = pts->i_Q0 + 1;
   cout << h_Qs->GetBinContent(1) << endl;
   // exit(0);
   Double_t bottom_threshold =
-      16; // i.e. bins with relative error greater than 25%
+      2; // i.e. bins with relative error greater than 25%
   // find local extremes in spectra
   while (getMeanAround(h_Qs, ++i, 2) >= bottom_threshold) {
     if (h_Qs->GetBinContent(i - 1) > h_Qs->GetBinContent(i) &&
-        h_Qs->GetBinContent(i) <= h_Qs->GetBinContent(i + 1))
+        h_Qs->GetBinContent(i) < h_Qs->GetBinContent(i + 1))
       pts->vi_Qvaley->push_back(i);
     if (h_Qs->GetBinContent(i - 1) < h_Qs->GetBinContent(i) &&
         h_Qs->GetBinContent(i) >= h_Qs->GetBinContent(i + 1))
@@ -230,8 +230,8 @@ void FindExtrPts(TH1D *h_Q0, TH1D *h_Qs, TH1D *h_dQ, Pts *pts,
 
   pts->g_Qpeaks->Print();
   pts->g_Qvaleys->Print();
-
-  c->Print("c.pdf");
+  c->SetLogy();
+  // c->Print("c.pdf");
   // exit(0);
 }
 
@@ -736,11 +736,15 @@ void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
 
   c_ei->cd(1);
   h_Qs->SetLineColor(2);
+
   h_Qs->Draw("HIST");
   h_Q0->Draw("HIST same");
+
   h_Q0->GetXaxis()->SetRange(0, prepPars->Qend * 1.2);
 
   DrawFrame(h_Q0, *pts);
+
+  c_ei->GetPad(1)->SetLogy();
 
   if (pts->g_Qpeaks->GetN() > 0 && pts->g_Qvaleys->GetN() > 0) {
     pts->g_Qpeaks->Draw("P same");
@@ -751,6 +755,7 @@ void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
 
   pts->g_dQpeaks->Draw("P same");
   pts->g_dQvaleys->Draw("P same");
+  c_ei->SetLogy();
 
   //   c_ei->Print("out.pdf");
 
@@ -764,10 +769,10 @@ void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
   vector<PrepPars> v_prepPars;
 
   c_est->cd(1);
-  v_prepPars.push_back(ParEst1(h_Q0, h_Qs, *prepPars, *pts));
+  // v_prepPars.push_back(ParEst1(h_Q0, h_Qs, *prepPars, *pts));
 
   c_est->cd(2);
-  v_prepPars.push_back(ParEst2(h_Q0, h_Qs, *prepPars, *pts));
+  // v_prepPars.push_back(ParEst2(h_Q0, h_Qs, *prepPars, *pts));
 
   c_est->cd(3);
   v_prepPars.push_back(ParEst3(h_Q0, h_Qs, h_Qnoise, *prepPars, *pts));
@@ -778,20 +783,20 @@ void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
   // AddParsFromFile("data/m1/G/1040/fit_1040.json", v_Pars, pars);
 
   // set low weights for pedestal
-  for (int i = 1; i <= h_Q0->GetNbinsX(); ++i) {
-    if (i < pts->i_Qvaley - 2)
-      h_Q0->SetBinError(i, 0.5 * h_Q0->GetBinContent(i));
-    else {
-      for (int j = 0; j < 4; ++j) {
-        h_Q0->SetBinError(i + j, (0.4 / (j + 1)) * h_Q0->GetBinContent(i));
-      }
-      break;
-    }
+  // for (int i = 1; i <= h_Q0->GetNbinsX(); ++i) {
+  //   if (i < pts->i_Qvaley - 2)
+  //     h_Q0->SetBinError(i, 0.5 * h_Q0->GetBinContent(i));
+  //   else {
+  //     for (int j = 0; j < 4; ++j) {
+  //       h_Q0->SetBinError(i + j, (0.4 / (j + 1)) * h_Q0->GetBinContent(i));
+  //     }
+  //     break;
+  //   }
 
-    // else
-    //   h_Q0->SetBinError(i, TMath::Sqrt(h_Q0->GetBinContent(i)));
-  }
-  h_Q0->Sumw2();
+  //   // else
+  //   //   h_Q0->SetBinError(i, TMath::Sqrt(h_Q0->GetBinContent(i)));
+  // }
+  // h_Q0->Sumw2();
   // exit(0);
   // fit with estimated parameters and pick result with smallest chi^2/ndof
   TFitResult BestFitResult = *FitCompare(h_Q0, f_Q, v_prepPars);
@@ -846,9 +851,8 @@ void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
                     "n");
   f_Q->Draw("same");
   leg_fit->Draw();
-
-  c_ei->Print(getImgPath("extr.pdf", outputRootDir).c_str());
-  c_fit->Print(getImgPath("fit.pdf", outputRootDir).c_str());
+  c_ei->Print(getImgPath("_extr.pdf", outputRootDir).c_str());
+  c_fit->Print(getImgPath("_fit.pdf", outputRootDir).c_str());
 
   // save fit parameters to root file
   TParameter<Double_t> parval;
@@ -888,6 +892,7 @@ void FitGauss(TDirectory *inputRootDir, TDirectory *outputRootDir) {
   // f->SetParameter(2, h_Q->GetStdDev());
   h_Q->Fit(f2, "Q", "");
   h_Q->Draw("same");
+  c->SetLogy();
   c->Print(getImgPath("_gaussfit_hQ.pdf", outputRootDir).c_str());
 }
 
