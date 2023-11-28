@@ -1,11 +1,13 @@
+include conandeps.mk
 SRC_DIR=src
 LIB_DIR=lib
 BUILD_DIR=build
 BIN_DIR=bin
 
 CXX = g++
-ROOTFLAGS :=`root-config --cflags` -I$(shell conan info --json conaninfo.txt | jq -r '.includedirs[0]')
+ROOTFLAGS :=`root-config --cflags` -I$(CONAN_INCLUDE_DIRS)
 ROOTLIBS :=`root-config --libs`
+
 
 # CXXFLAGS=-L/usr/lib/root -lGui -lCore -lImt -lRIO -lNet -lHist -lGraf -lGraf3d -lGpad -lROOTVecOps -lTree -lTreePlayer -lRint -lPostscript -lMatrix -lPhysics -lMathCore -lThread -lMultiProc -lROOTDataFrame -pthread -lm -ldl -rdynamic -pthread -std=c++17 -m64 --std=c++17 -O0 -fPIC
 # ROOTLIBS :=-L/snap/root-framework/925/usr/local/lib -lCore -lImt -lRIO -lNet -lHist -lGraf -lGraf3d -lGpad -lROOTVecOps -lTree -lTreePlayer -lRint -lPostscript -lMatrix -lPhysics -lMathCore -lThread -lMultiProc -lROOTDataFrame -Wl,-rpath,/snap/root-framework/925/usr/local/lib -pthread -lm -ldl -rdynamic
@@ -54,9 +56,12 @@ $(LIB_DIR)/%.o: $(SRC_DIR)/%.cpp
 	$(dir_guard)
 	$(CXX) $(ROOTFLAGS) -c $< -o $@ $(ROOTLIBS)
 
+conandeps.mk:
+	@conan install .
+	@rm *conanbuild* *conanrun*
 
 clean:
-	rm -f -r $(BUILD_DIR) $(BIN_DIR) $(LIB_DIR)
+	rm -f -r $(BUILD_DIR) $(BIN_DIR) $(LIB_DIR) conandeps.mk
 
 clean_libs:
 	rm -f -r $(LIB_DIR)
