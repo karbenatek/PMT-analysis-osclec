@@ -19,3 +19,7 @@ tst.cpp
 todo.md
 *.pdf
 __pycache__
+conan.lock
+conanbuildinfo.txt
+conaninfo.txt
+graph_info.json

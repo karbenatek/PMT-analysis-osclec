@@ -4,7 +4,7 @@ BUILD_DIR=build
 BIN_DIR=bin
 
 CXX = g++
-ROOTFLAGS :=`root-config --cflags` -I/opt/tomlplusplus/include
+ROOTFLAGS :=`root-config --cflags` -I$(shell conan info --json conaninfo.txt | jq -r '.includedirs[0]')
 ROOTLIBS :=`root-config --libs`
 
 # CXXFLAGS=-L/usr/lib/root -lGui -lCore -lImt -lRIO -lNet -lHist -lGraf -lGraf3d -lGpad -lROOTVecOps -lTree -lTreePlayer -lRint -lPostscript -lMatrix -lPhysics -lMathCore -lThread -lMultiProc -lROOTDataFrame -pthread -lm -ldl -rdynamic -pthread -std=c++17 -m64 --std=c++17 -O0 -fPIC

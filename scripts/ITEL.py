@@ -446,7 +446,7 @@ class ITEL():
                 else:
                     data_s = data_s + chr(line)
 
-    def scanTHRspectra(self, THR = [20, 40, 60, 80, 100, 120, 140]):
+    def scanTHRspectra(self, THR = [20, 40, 60, 80, 100, 120, 140], meas_time = 30):
         itel.rampUp()
         directory = "data/scanTHRspectra_" + getTimeStamp()
         mkdir(directory)
@@ -454,7 +454,7 @@ class ITEL():
             self.hv.setThreshold(thr)
             sleep(0.5)
             self.startDAQ()
-            sleep(30)
+            sleep(meas_time)
             self.stopDAQ()
             buffer = []
             n = 0
@@ -485,7 +485,7 @@ class ITEL():
             plt.savefig(directory + "/%imV.png" %thr)
             pd.DataFrame(np.array(self.histogram)).to_csv(directory + "/%imV.csv" %thr ,index_label="i",header=["counts"])
             plt.cla()
-        itel.rampDown()
+        # itel.rampDown()
 
 
     def getSpectrum(self, n_Events = None, ACQ_time = None, OutFile = None , HV = 940, THR = 60):
@@ -496,6 +496,7 @@ class ITEL():
         
         self.hv.setThreshold(THR)
         self.hv.setVoltageSet(HV)
+        sleep(0.5)
         self.rampUp()
         buffer = []
         if n_Events is not None:
@@ -522,13 +523,16 @@ class ITEL():
 
 if __name__ == '__main__':
     itel = ITEL("/dev/itel_HV", 6, "/dev/itel_RC", "/dev/itel_DAQ")
-    # itel.getSpectrum(ACQ_time= 4)
+    # itel.getSpectrum(ACQ_time= 120, OutFile= "data/spe", THR = 40)
+    itel.getSpectrum(ACQ_time= 120, OutFile= "data/blank", THR = 40)
+
     # itel.getSpectrum(n_Events=10000, OutFile= "mess/itel-test")
-    itel.scanTHRspectra([240, 280, 320])
+    # itel.scanTHRspectra([80],10)
     # itel.scanTHRrates(np.linspace(40,260,12))
     # itel.hv.setVoltageSet(940)
     # itel.rampUp()
     # itel.rampDown()
     # itel.scanTHRrates()
     # itel.scanTHRspectra()
+    # itel.startDAQ()
     itel.killDAQ()

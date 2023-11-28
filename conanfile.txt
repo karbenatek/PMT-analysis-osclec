@@ -1,0 +1,5 @@
+[requires]
+tomlplusplus/3.4.0
+
+[generators]
+txt
