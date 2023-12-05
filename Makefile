@@ -18,6 +18,8 @@ TARGET = $(BIN_DIR)/pma
 
 dir_guard=@mkdir -p $(@D)
 
+install: $(TARGET)
+
 $(TARGET): $(SRC) $(LIB_OBJS) $(SRC_DIR)/routines.cpp
 	$(dir_guard)
 	$(CXX) $(ROOTFLAGS) -o $@ $(SRC) $(LIB_OBJS) $(ROOTLIBS)
@@ -57,7 +59,7 @@ $(LIB_DIR)/%.o: $(SRC_DIR)/%.cpp
 	$(CXX) $(ROOTFLAGS) -c $< -o $@ $(ROOTLIBS)
 
 conandeps.mk:
-	@conan install .
+	@conan install . 
 	@rm *conanbuild* *conanrun*
 
 clean:

@@ -23,31 +23,23 @@
 #include <vector>
 
 namespace fs = std::filesystem;
+
 struct ParsedArgs {
-  fs::path rootFileName = "";
   fs::path cfgFileName = "";
   Bool_t recreate = false;
 };
 
 void prntUsage(char *argv[]) {
-  std::cerr << "Usage: " << argv[0] << " <root_file> [-c cfg_file] [-r]"
-            << std::endl
-            << std::endl
-            << "\tExecutes PhotoMultiplier analysis." << std::endl;
+  std::cerr << "Usage: " << argv[0] << " [-c cfg_file] [-r]" << std::endl;
+  std::cerr << "  Executes PhotoMultiplier analysis." << std::endl << std::endl;
+  std::cerr << "Options:" << std::endl;
+  std::cerr << "  -c cfg_file    Specify the configuration file to use"
+            << std::endl;
+  std::cerr << "  -r             Recreate all output root files" << std::endl;
 }
 
 ParsedArgs parseArgs(int argc, char *argv[]) {
   ParsedArgs parsedArgs;
-
-  // Get unnamed arguments
-  for (int i = 1; i < argc; ++i) {
-    if (((std::string)argv[i]) == "-r")
-      continue;
-    else if (argv[i][0] == '-')
-      ++i;
-    else
-      parsedArgs.rootFileName = argv[i];
-  }
 
   // Define the options and their arguments
   struct option long_options[] = {
@@ -77,41 +69,24 @@ ParsedArgs parseArgs(int argc, char *argv[]) {
     }
   }
 
+  // wrong input handling
   if (parsedArgs.cfgFileName == "") {
     prntUsage(argv);
     exit(1);
   }
 
-  // some error handling
-  if (not fs::exists(parsedArgs.rootFileName)) {
-    std::cerr << "Input file " << parsedArgs.rootFileName << " does not exist"
-              << std::endl;
-    // exit(1);
-  }
-
   if (not fs::exists(parsedArgs.cfgFileName)) {
-    if (not parsedArgs.cfgFileName.empty()) {
+    if (parsedArgs.cfgFileName.empty()) {
+      std::cerr << "Cfg file not defined" << std::endl;
+      prntUsage(char **argv);
+    } else {
       std::cerr << "Cfg file " << parsedArgs.cfgFileName << " not found"
                 << std::endl;
-    }
-    // try to look into default cfg directory
-    parsedArgs.cfgFileName = getDefaultCfgFile(parsedArgs.cfgFileName);
-    if (not fs::exists(parsedArgs.cfgFileName)) {
-      std::cerr << "Cfg file " << parsedArgs.cfgFileName << " not found"
-                << std::endl;
-      exit(1);
     }
   }
 
-  std::cout << "Running analysis on file: " << parsedArgs.rootFileName
-            << std::endl
-            << "Used configuration file: " << parsedArgs.cfgFileName
+  std::cout << "Used configuration file: " << parsedArgs.cfgFileName
             << std::endl;
-
-  // std::cout << "Parsed args\n"
-  //           << parsedArgs.rootFileName << std::endl
-  //           << parsedArgs.cfgFileName << std::endl
-  //           << parsedArgs.recreate << std::endl;
 
   return parsedArgs;
 }
@@ -123,16 +98,19 @@ void recreateRootFile(fs::path filePath) {
   rootFile->Close();
   std::cout << "File " << filePath << " re/created" << std::endl;
 }
+
+/*
+get TDirectory or ,if not exists, create (create = true)/ throw error (create
+= false)
+*/
 TDirectory *getRootDir(TFile *rootFile, std::string directoryName,
                        Bool_t create = 0) {
-  /*
-  get TDirectory or ,if not exists, create (create = true)/ throw error (create
-  = false)
-  */
   TDirectory *rootDir;
   rootDir = rootFile->GetDirectory(directoryName.c_str());
 
   if (not rootDir) {
+    // if TDirectory does not exist, create new or throw error depending on
+    // Bool_t create value
     if (create) {
       rootDir = rootFile->mkdir(directoryName.c_str());
       std::cout << "TDirectory \"" << directoryName << "\" created in TFile \""
@@ -147,15 +125,17 @@ TDirectory *getRootDir(TFile *rootFile, std::string directoryName,
   return rootDir;
 }
 
+/*
+open TFile as READ (write = 0)/ WRITE (write = 1) or ,if not exists,
+create(write = 1)/ throw error (write = 0)
+*/
 TFile *getRootFile(fs::path rootFilePath, Bool_t write = 0) {
-  /*
-  open TFile as READ (write = 0)/ WRITE (write = 1) or ,if not exists,
-  create(write = 1)/ throw error (write = 0)
-  */
   TFile *rootFile;
   if (fs::exists(rootFilePath)) {
     rootFile = TFile::Open(rootFilePath.c_str(), write ? "update" : "read");
   } else {
+    // if TFile does not exist, create new or throw error depending on
+    // Bool_t create value
     if (write) {
       rootFile = TFile::Open(rootFilePath.c_str(), "CREATE");
       std::cout << "File " << rootFilePath << " created" << std::endl;
@@ -165,35 +145,33 @@ TFile *getRootFile(fs::path rootFilePath, Bool_t write = 0) {
     }
   }
   return rootFile;
-
-  // TH1F *h = new TH1F("h", "", 40, -1, 1);
-  // h->FillRandom("gaus");
-  // rootFile->WriteObject(h, "haha");
-  // rootFile->Close();
 }
 
 class PMA {
 private:
   // class variables
   toml::table cfg;
-  fs::path rootFileName;
   fs::path cfgFileName;
   Bool_t recreate = false;
   std::vector<std::string> recreated_files;
   std::map<std::string, std::pair<Int_t, std::function<void()>>> moduleMap;
 
-  // class methods (private)
+  // Check if root file was already recreated in actual session
   Bool_t is_recreated(std::string fileName) {
+
     return std::find(recreated_files.begin(), recreated_files.end(),
                      fileName) != recreated_files.end();
   }
+
+  /*
+  get TDirectory opened in read mode by parameter names for TFile and
+  TDirectory from parameter table from config file
+  */
   TDirectory *getDir(toml::table ParTable, std::string FileParName,
                      std::string DirParName) {
-    /*
-    get TDirectory opened in read mode by parameter names for TFile and
-    TDirectory from parameter table
-    */
+
     fs::path RootFilePath = cfgFileName.parent_path();
+    // check if ParName exists in cfg and set file path relative to the cfg file
     if (ParTable[FileParName.c_str()].is_string())
       RootFilePath = RootFilePath.append(
           *ParTable[FileParName.c_str()].value<std::string>());
@@ -225,7 +203,8 @@ private:
       fileName =
           *ParTable[write ? "output_file" : "input_file"].value<std::string>();
     else
-      fileName = rootFileName.c_str();
+      std::cerr << "No " << (write ? "output_file" : "input_file")
+                << " specified in config." << std::endl;
 
     filePath = filePath.append(fileName);
 
@@ -466,8 +445,7 @@ private:
   };
 
 public:
-  PMA(const fs::path _rootFileName, const fs::path _cfgFileName) {
-    rootFileName = _rootFileName;
+  PMA(const fs::path _cfgFileName) {
     cfgFileName = _cfgFileName;
 
     initModuleMap();
@@ -496,7 +474,7 @@ int main(int argc, char *argv[]) {
   ParsedArgs args = parseArgs(argc, argv);
 
   // run analysis
-  PMA pma(args.rootFileName, args.cfgFileName);
+  PMA pma(args.cfgFileName);
   pma.run(args.recreate);
   return 0;
 }

@@ -89,6 +89,7 @@ class ITEL():
 
         print(self.hv.readMonRegisters())
     def rampDown(self):
+        self.hv.reset()
         if self.hv.getStatus() == 0 and self.hv.getVoltage() > 200:
             print("Ramping down!")
             self.hv.powerOff()
@@ -98,18 +99,22 @@ class ITEL():
 
     def rampUp(self):
         """
-        Set HV on and block terminal until desired voltage is obtained
+        Set HV on and block terminal until desired voltage is reached
         """
+        self.hv.reset()
         if self.hv.getStatus() in [0, 1] and self.hv.getVoltage() < 200:
             print("Ramping up!")
             self.hv.powerOn()
-            while self.hv.getStatus() == 2: # 2 is ramping up state
-                sleep(2)
-                print("HV = %4.3f V" %self.hv.getVoltage(), end="\r")
-            print("Waiting 30 seconds to stabilize...")            
-            for i in range(15):
-                sleep(2)
-                print("HV = %4.3f V" %self.hv.getVoltage(), end="\r")
+        self.waitHVready()
+
+    def waitHVready(self):
+        while self.hv.getStatus() == 2: # 2 is ramping up state
+            sleep(2)
+            print("HV = %4.3f V" %self.hv.getVoltage(), end="\r")
+        print("Waiting 20 seconds to stabilize...")            
+        for i in range(10):
+            sleep(2)
+            print("HV = %4.3f V" %self.hv.getVoltage(), end="\r")
 
     def scanTHRrates(self, THR = [60, 80, 100, 120, 140], n = 10): #scans dark rates for thresholds in THR
         # THR = []
@@ -488,7 +493,7 @@ class ITEL():
         # itel.rampDown()
 
 
-    def getSpectrum(self, n_Events = None, ACQ_time = None, OutFile = None , HV = 940, THR = 60):
+    def getSpectrum(self, n_Events = None, ACQ_time = None, OutFile = None , HV = 940, THR = 60, plot = True):
         # n_Events or ACQ_time has to be defined!
         if (n_Events is None and ACQ_time is None) or (n_Events is not None and ACQ_time is not None):
             print("Either n_Events or ACQ_time has to be defined.")
@@ -517,18 +522,23 @@ class ITEL():
         if OutFile is not None:
             plt.savefig("%s.png" %OutFile)
             pd.DataFrame(np.array(self.histogram)).to_csv("%s.csv" %OutFile ,index_label="i",header=["counts"])
-
-        plt.show()
+        if plot:
+            plt.show()
 
 
 if __name__ == '__main__':
     itel = ITEL("/dev/itel_HV", 6, "/dev/itel_RC", "/dev/itel_DAQ")
     # itel.getSpectrum(ACQ_time= 120, OutFile= "data/spe", THR = 40)
-    itel.getSpectrum(ACQ_time= 120, OutFile= "data/blank", THR = 40)
+    # itel.getSpectrum(ACQ_time= 10, OutFile= "/tmp/bleh", HV = 880, THR = 30, plot = True)
+
+    sleep(10)
+    for HV in [880, 940, 1020, 1100, 1180]:
+        itel.getSpectrum(ACQ_time= 240, OutFile= "data/laser_HV-%i" %HV, HV = HV, THR = 30, plot = False)
 
     # itel.getSpectrum(n_Events=10000, OutFile= "mess/itel-test")
     # itel.scanTHRspectra([80],10)
-    # itel.scanTHRrates(np.linspace(40,260,12))
+    # itel.hv.setVoltageSet()
+    # itel.scanTHRrates([26,27,28,29,30], n = 5)
     # itel.hv.setVoltageSet(940)
     # itel.rampUp()
     # itel.rampDown()
