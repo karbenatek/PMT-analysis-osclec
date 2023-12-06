@@ -25,7 +25,7 @@ Antonín Lindner - antoninlindner@gmail.com
 - [Module implementation](#Moduleimplemantation)
 
 ## Installation
-0. Make sure you have following dependencies:
+0. Make sure you have following packages installed:
     - [ROOT](https://root.cern/install/) 6.28/x (older version might work but none were tested)
     - conan 2.x
 1. Clone the repository: `git clone https://github.com/karbenatek/PMTAF.git`
@@ -34,6 +34,5 @@ Antonín Lindner - antoninlindner@gmail.com
 
 ## Usage
 
-1. Run the project: `npm start`
-2. Open your web browser and visit `http://localhost:3000`
+# WORK IN PROGRESS
 

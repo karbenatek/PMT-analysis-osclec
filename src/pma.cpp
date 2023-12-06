@@ -1,14 +1,17 @@
 #include "libanalis.h"
 #include "libfit.h"
+#include "libinfn.h"
 #include "libosclec.h"
 #include "routines.cpp"
 
 // #include <RtypesCore.h>
+#include <RtypesCore.h>
 #include <TDirectory.h>
 #include <TFile.h>
 #include <TH1.h>
 #include <TUUID.h>
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <functional>
@@ -78,7 +81,7 @@ ParsedArgs parseArgs(int argc, char *argv[]) {
   if (not fs::exists(parsedArgs.cfgFileName)) {
     if (parsedArgs.cfgFileName.empty()) {
       std::cerr << "Cfg file not defined" << std::endl;
-      prntUsage(char **argv);
+      prntUsage(argv);
     } else {
       std::cerr << "Cfg file " << parsedArgs.cfgFileName << " not found"
                 << std::endl;
@@ -146,7 +149,23 @@ TFile *getRootFile(fs::path rootFilePath, Bool_t write = 0) {
   }
   return rootFile;
 }
-
+namespace toml {
+/*
+look for string type parameter in ParameterTable and throw error if does not
+exist
+ */
+std::string getString(toml::table ParameterTable, std::string ParameterName) {
+  if (ParameterTable[ParameterName.c_str()].is_string())
+    return *ParameterTable[ParameterName.c_str()].value<std::string>();
+  else {
+    std::cerr << "String parameter \"" << ParameterName
+              << "\" does not exist in following parameter table:" << std::endl
+              << ParameterTable << std::endl
+              << std::endl;
+    exit(1);
+  }
+}
+} // namespace toml
 class PMA {
 private:
   // class variables
@@ -219,7 +238,7 @@ private:
     return rootDir;
   }
 
-  // MODULES
+  // MODULES //
   void runOscLecConverter() {
     TDirectory *outputRootDir;
     toml::table MeasurementNames = *cfg["osclec_converter"].as_table();
@@ -245,6 +264,32 @@ private:
       std::cout << "Data were seccessfully writen to\nTFile: \""
                 << outputRootDir->GetFile()->GetName() << "\" \nTDirectory: \""
                 << MeasurementName << "\"\n\n";
+      // close TFile
+      outputRootDir->GetFile()->Close();
+    }
+  }
+
+  void runINFNConverter() {
+    TDirectory *outputRootDir;
+    toml::table MeasurementNames = *cfg["infn_converter"].as_table();
+
+    for (const auto &element : MeasurementNames) {
+      // parse parameters
+      toml::table ParTable = *element.second.as_table();
+      std::string MeasurementName = element.first.data();
+      fs::path InputCsvFileName = toml::getString(ParTable, "csvdata_file");
+      fs::path InputCsvFilePath = cfgFileName.parent_path();
+      InputCsvFilePath.append(InputCsvFileName.c_str());
+      // attach output TDir
+      outputRootDir = getDir(MeasurementName, ParTable, true);
+
+      // run parser
+      infn::parseFile(InputCsvFilePath, outputRootDir);
+
+      // std::cout << "Data were seccessfully writen to\nTFile: \""
+      //           << outputRootDir->GetFile()->GetName() << "\" \nTDirectory:
+      //           \""
+      //           << MeasurementName << "\"\n\n";
       // close TFile
       outputRootDir->GetFile()->Close();
     }
@@ -371,6 +416,7 @@ private:
     // define map of available modules
     moduleMap = {
         {"osclec_converter", {0, [this]() { this->runOscLecConverter(); }}},
+        {"infn_converter", {0, [this]() { this->runINFNConverter(); }}},
         {"pulse_analysis", {1, [this]() { this->runPulseAnalysis(); }}},
         {"afterpulse_analysis",
          {1, [this]() { this->runAfterPulseAnalysis(); }}},

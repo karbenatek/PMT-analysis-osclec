@@ -360,11 +360,9 @@ std::string formatAPratio(Int_t all, Int_t aps) {
   return output_string;
 }
 
-void doAfterPulseAnalysis(
-    TDirectory *inputRootDir, TDirectory *outputRootDir,
-    const Double_t threshold,
-    const Float_t pulse_length_threshold) // after pulse analysis
-{
+void doAfterPulseAnalysis(TDirectory *inputRootDir, TDirectory *outputRootDir,
+                          const Double_t threshold,
+                          const Float_t pulse_length_threshold) {
 
   TCanvas *c = new TCanvas();
   TTree *tr = inputRootDir->Get<TTree>("pulses");

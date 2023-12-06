@@ -21,7 +21,10 @@ if [ -d "$PY_DIR" ]; then
 else
   echo "Error: $PY_DIR does not exist."
 fi
-# activate venv environment
+
+# activate Python venv environment that meets INFN electronics dependencies
 . ~/.venvs/PythonINFN/bin/activate
 
 # mb check if environment exists and create it if not :) ... makefile thing
+# pip install argparse os time sys cmd2 functools getpass numpy
+# struct minimalmodbus==1.0.2
