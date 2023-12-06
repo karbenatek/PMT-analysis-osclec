@@ -31,7 +31,7 @@ debug: $(TARGET)
 # some run command for testing or debugind
 test: $(TARGET)
 	# pma mess/3peDR_analysis.root -c mess/cfg.toml
-	pma -c mess/cfg_infn.toml -r
+	pma -c mess/cfgtest.toml -r
 
 # compile all lib objects defined under $(LIB_OBJS) 
 build_libs: $(LIB_OBJS)

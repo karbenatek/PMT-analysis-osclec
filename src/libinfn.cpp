@@ -83,11 +83,11 @@ void parseFile(fs::path InputCsvFilePath, TDirectory *outputRootDir) {
   TTree *PMTAFTree = new TTree(
       "pmtaf_tree",
       ("Pulse events from " + std::string(InputCsvFilePath.c_str())).c_str());
-  PMTAFTree->Branch("Time_10fs", &Time_10fs);
-  PMTAFTree->Branch("TimeOverTrigger_ns", &TimeOverTrigger_ns);
-  PMTAFTree->Branch("Energy", &Energy);
-  PMTAFTree->Branch("Date", Date, "Date/C", 10);
-  PMTAFTree->Branch("Time", Time, "Time/C", 8);
+  PMTAFTree->Branch("time_10fs", &Time_10fs);
+  PMTAFTree->Branch("time_over_trigger_ns", &TimeOverTrigger_ns);
+  PMTAFTree->Branch("energy", &Energy);
+  PMTAFTree->Branch("date", Date, "date/C", 10);
+  PMTAFTree->Branch("time", Time, "time/C", 8);
 
   // process variables
   uint64_t CurrentTime_10fs = 0;
