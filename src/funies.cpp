@@ -2,7 +2,7 @@
 
 namespace funies {
 Double_t FunoiseQ0(Double_t *x, Double_t *par) {
-  Float_t xx = x[0];
+  Double_t xx = x[0];
   Double_t Q0 = par[0];
   Double_t sig0 = par[1];
   Double_t w = par[2];
@@ -14,7 +14,7 @@ Double_t FunoiseQ0(Double_t *x, Double_t *par) {
   return f;
 }
 Double_t FunoiseExp(Double_t *x, Double_t *par) {
-  Float_t xx = x[0];
+  Double_t xx = x[0];
   Double_t Q0 = par[0];
   Double_t w = par[1];
   Double_t alpha = par[2];
@@ -29,7 +29,7 @@ Double_t FunoiseExp(Double_t *x, Double_t *par) {
   return f;
 }
 Double_t Funoise(Double_t *x, Double_t *par) {
-  Float_t xx = x[0];
+  Double_t xx = x[0];
   Double_t Q0 = par[0];
   Double_t sig0 = par[1];
   Double_t w = par[2];
@@ -49,7 +49,7 @@ Double_t Funoise(Double_t *x, Double_t *par) {
 }
 
 Double_t Funsig(Double_t *x, Double_t *par) {
-  Float_t xx = x[0];
+  Double_t xx = x[0];
   Double_t Q0 = par[0];
   Double_t Q1 = par[1];
   Double_t sig1 = par[2];
@@ -66,7 +66,7 @@ Double_t Funsig(Double_t *x, Double_t *par) {
   return f;
 }
 Double_t Funs(Double_t *x, Double_t *par) {
-  Float_t xx = x[0];
+  Double_t xx = x[0];
   Double_t Q0 = par[0];
   Double_t Q1 = par[1];
   Double_t sig1 = par[2];
@@ -83,7 +83,7 @@ Double_t Funs(Double_t *x, Double_t *par) {
   return f;
 }
 Double_t Fun(Double_t *x, Double_t *par) {
-  Float_t xx = x[0];
+  Double_t xx = x[0];
   Double_t Q0 = par[0];
   Double_t sig0 = par[1];
   Double_t Q1 = par[2];

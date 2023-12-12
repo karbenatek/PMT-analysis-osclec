@@ -2,7 +2,7 @@
 #include "libfit.h"
 #include "libinfn.h"
 #include "libosclec.h"
-#include "routines.cpp"
+#include "routines.h"
 
 // #include <RtypesCore.h>
 #include <RtypesCore.h>
@@ -165,6 +165,55 @@ std::string getString(toml::table ParameterTable, std::string ParameterName) {
     exit(1);
   }
 }
+
+Float_t getInt(toml::table ParameterTable, std::string ParameterName) {
+  if (ParameterTable[ParameterName.c_str()].is_integer())
+    return *ParameterTable[ParameterName.c_str()].value<Int_t>();
+  else {
+    std::cerr << "Float_t parameter \"" << ParameterName
+              << "\" does not exist in following parameter table:" << std::endl
+              << ParameterTable << std::endl
+              << std::endl;
+    exit(1);
+  }
+}
+
+Float_t getFloat(toml::table ParameterTable, std::string ParameterName) {
+  if (ParameterTable[ParameterName.c_str()].is_number())
+    return *ParameterTable[ParameterName.c_str()].value<Float_t>();
+  else {
+    std::cerr << "Float_t parameter \"" << ParameterName
+              << "\" does not exist in following parameter table:" << std::endl
+              << ParameterTable << std::endl
+              << std::endl;
+    exit(1);
+  }
+}
+
+Double_t getDouble(toml::table ParameterTable, std::string ParameterName) {
+  if (ParameterTable[ParameterName.c_str()].is_number())
+    return *ParameterTable[ParameterName.c_str()].value<Double_t>();
+  else {
+    std::cerr << "Double_t parameter \"" << ParameterName
+              << "\" does not exist in following parameter table:" << std::endl
+              << ParameterTable << std::endl
+              << std::endl;
+    exit(1);
+  }
+}
+
+Bool_t getBool(toml::table ParameterTable, std::string ParameterName) {
+  if (ParameterTable[ParameterName.c_str()].is_boolean())
+    return *ParameterTable[ParameterName.c_str()].value<Bool_t>();
+  else {
+    std::cerr << "Double_t parameter \"" << ParameterName
+              << "\" does not exist in following parameter table:" << std::endl
+              << ParameterTable << std::endl
+              << std::endl;
+    exit(1);
+  }
+}
+
 } // namespace toml
 class PMA {
 private:
@@ -227,9 +276,9 @@ private:
 
     filePath = filePath.append(fileName);
 
-    // if recreate is true, check if file was already recreated in current
-    // session
-    if (recreate && not is_recreated(fileName)) {
+    // if recreate and write is true, check if file was already recreated in
+    // current session
+    if (recreate && write && !is_recreated(fileName)) {
       recreateRootFile(filePath);
       recreated_files.push_back(fileName);
     }
@@ -245,15 +294,15 @@ private:
 
     for (const auto &element : MeasurementNames) {
       // parse parameters
-      toml::table ParTable = *element.second.as_table();
+      toml::table ParameterTable = *element.second.as_table();
       std::string MeasurementName = element.first.data();
-      Bool_t invert_polarity = *ParTable["invert_polarity"].value<Bool_t>();
-      Double_t threshold = *ParTable["threshold"].value<Double_t>();
+      Bool_t invert_polarity = toml::getBool(ParameterTable, "invert_polarity");
+      Float_t threshold = toml::getFloat(ParameterTable, "threshold");
       fs::path rawdata_directory =
-          *ParTable["rawdata_directory"].value<std::string>();
+          toml::getString(ParameterTable, "rawdata_directory");
 
       // attach output TDir
-      outputRootDir = getDir(MeasurementName, ParTable, true);
+      outputRootDir = getDir(MeasurementName, ParameterTable, true);
 
       // run parser
       osclec::parseFiles(
@@ -303,21 +352,42 @@ private:
     for (const auto &element : MeasurementNames) {
       // parse parameters
       std::string MeasurementName = element.first.data();
-      toml::table ParTable = *element.second.as_table();
-      Int_t bins_ampl = *ParTable["bins_ampl"].value<Int_t>();
-      Int_t bins_Q = *ParTable["bins_Q"].value<Int_t>();
-      Int_t bins_Qnoise = *ParTable["bins_Qnoise"].value<Int_t>();
-      Double_t cut_fraction = *ParTable["cut_fraction"].value<Double_t>();
-      Double_t threshold = *ParTable["threshold"].value<Double_t>();
-      Double_t max_ampl = *ParTable["max_ampl"].value<Double_t>();
+      toml::table ParameterTable = *element.second.as_table();
+      Double_t cut_fraction = toml::getDouble(ParameterTable, "cut_fraction");
+      Double_t threshold = toml::getDouble(ParameterTable, "threshold");
 
       // attach i/o TDirectories
-      inputRootDir = getDir(MeasurementName, ParTable, false);
-      outputRootDir = getDir(MeasurementName, ParTable, true);
+      inputRootDir = getDir(MeasurementName, ParameterTable, false);
+      outputRootDir = getDir(MeasurementName, ParameterTable, true);
 
-      pmanalysis::doPulseAnalysis(inputRootDir, outputRootDir, bins_ampl,
-                                  bins_Q, bins_Qnoise, threshold, max_ampl,
-                                  cut_fraction);
+      pmta::doCFDPulseAnalysis(inputRootDir, outputRootDir, threshold,
+                               cut_fraction, false);
+      inputRootDir->GetFile()->Close();
+      outputRootDir->GetFile()->Close();
+    }
+  }
+
+  void getHistogram() {
+    TDirectory *inputRootDir;
+    TDirectory *outputRootDir;
+    toml::table MeasurementNames = *cfg["get_hist"].as_table();
+
+    for (const auto &element : MeasurementNames) {
+      // parse parameters
+      std::string MeasurementName = element.first.data();
+      toml::table ParameterTable = *element.second.as_table();
+      std::string BranchName = toml::getString(ParameterTable, "branch_name");
+      Int_t Bins = toml::getInt(ParameterTable, "bins");
+      Double_t XLow = toml::getDouble(ParameterTable, "x_low");
+      Double_t XHigh = toml::getDouble(ParameterTable, "x_high");
+
+      // attach i/o TDirectories
+      inputRootDir = getDir(MeasurementName, ParameterTable, false);
+      outputRootDir = getDir(MeasurementName, ParameterTable, true);
+
+      pmta::getHistogram(inputRootDir, outputRootDir, BranchName, Bins, XLow,
+                         XHigh);
+
       inputRootDir->GetFile()->Close();
       outputRootDir->GetFile()->Close();
     }
@@ -381,8 +451,7 @@ private:
       spRootDir = getDir(ParTable, "sp_file_path", "sp_measurement_name");
       outputRootDir = getDir(MeasurementName, ParTable, true);
       exit(0);
-      pmanalysis::GetDarkRate(drRootDir, spRootDir, outputRootDir,
-                              pe_threshold);
+      pmta::GetDarkRate(drRootDir, spRootDir, outputRootDir, pe_threshold);
       drRootDir->GetFile()->Close();
       spRootDir->GetFile()->Close();
       outputRootDir->GetFile()->Close();
@@ -398,15 +467,15 @@ private:
       std::string MeasurementName = element.first.data();
       // parse parameters
       toml::table ParTable = *element.second.as_table();
-      Double_t threshold = *ParTable["threshold"].value<Double_t>();
-      Float_t pulse_length_threshold =
-          *ParTable["pulse_length_threshold"].value<Float_t>();
+      Float_t threshold = *ParTable["threshold"].value<Float_t>();
+      Double_t pulse_length_threshold =
+          *ParTable["pulse_length_threshold"].value<Double_t>();
 
       inputRootDir = getDir(MeasurementName, ParTable, false);
       outputRootDir = getDir(MeasurementName, ParTable, true);
 
-      pmanalysis::doAfterPulseAnalysis(inputRootDir, outputRootDir, threshold,
-                                       pulse_length_threshold);
+      pmta::doAfterPulseAnalysis(inputRootDir, outputRootDir, threshold,
+                                 pulse_length_threshold);
       inputRootDir->GetFile()->Close();
       outputRootDir->GetFile()->Close();
     }
@@ -418,11 +487,12 @@ private:
         {"osclec_converter", {0, [this]() { this->runOscLecConverter(); }}},
         {"infn_converter", {0, [this]() { this->runINFNConverter(); }}},
         {"pulse_analysis", {1, [this]() { this->runPulseAnalysis(); }}},
+        {"get_hist", {2, [this]() { this->getHistogram(); }}},
         {"afterpulse_analysis",
-         {1, [this]() { this->runAfterPulseAnalysis(); }}},
-        {"singlephoton_fit", {2, [this]() { this->runSinglephotonFit(); }}},
-        {"gauss_fit", {2, [this]() { this->runGaussFit(); }}},
-        {"darkrate", {3, [this]() { this->runDarkrate(); }}},
+         {2, [this]() { this->runAfterPulseAnalysis(); }}},
+        {"singlephoton_fit", {3, [this]() { this->runSinglephotonFit(); }}},
+        {"gauss_fit", {3, [this]() { this->runGaussFit(); }}},
+        {"darkrate", {4, [this]() { this->runDarkrate(); }}},
         // pattern: {"module_name", {priority, [this]() {
         // this->moduleFunction(); }}}, priority defines the order of module
         // execution

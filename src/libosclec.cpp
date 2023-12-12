@@ -1,3 +1,6 @@
+#include "routines.h"
+
+#include <RtypesCore.h>
 #include <cstdint>
 #include <filesystem>
 #include <ostream>
@@ -59,46 +62,7 @@ Int_t n_digit(Int_t number) {
   }
   return count;
 }
-std::string s_to_10fs(std::string s) {
-  Int_t Shift = 14;
-  std::string result;
-  int decimalIndex = s.find('.');
-  // std::cout << " > " << std::string("ab-") + s + std::string("-cd")
-  //           << std::endl;
-  // exit(0);
-  if (decimalIndex == std::string::npos)
-    s = "0.0";
 
-  // Extract the integer part before the decimal point
-  std::string integerPart = s.substr(0, decimalIndex);
-
-  // Extract the fractional part after the decimal point
-  std::string fractionalPart = s.substr(decimalIndex + 1);
-
-  // cut or extend fractional part
-  if (fractionalPart.size() > Shift) {
-    if (fractionalPart.at(Shift) >= Shift) {
-      // coerce
-      fractionalPart.insert(Shift, ".");
-      Double_t fracDouble = round(std::stod(fractionalPart));
-      fractionalPart = std::to_string(static_cast<Int_t>(fracDouble));
-    }
-    // cut
-    fractionalPart = fractionalPart.substr(0, Shift);
-  } else
-    // add zeros if fractional part is short
-    while (fractionalPart.size() < Shift)
-      fractionalPart += '0';
-
-  // concatenate previous decimal and fractional part
-  result = integerPart + fractionalPart;
-
-  // std::cout << "#########" << std::endl
-  //           << s << std::endl
-  //           << result << std::endl;
-
-  return result;
-}
 void GetFileInfo(std::ifstream &InputFile, Int_t &fpos_Wfm, Int_t &fpos_h,
                  Int_t &n_Wfm, Int_t &n_Seg) {
   char line[64];
@@ -126,14 +90,14 @@ void GetFileInfo(std::ifstream &InputFile, Int_t &fpos_Wfm, Int_t &fpos_h,
 // InvertPolarity
 Int_t ParseWfm(std::ifstream &InputFile, Int_t &fpos_Wfm, Int_t &fpos_h,
                Int_t &iSeg, char Date[11], char GlobalTime[9],
-               uint64_t &Time_10fs, std::vector<Double_t> &x,
-               std::vector<Float_t> &t, Double_t &maxAmpl,
-               bool InvertPolarity) {
+               uint64_t &Time_10fs, std::vector<Float_t> &x,
+               std::vector<Double_t> &t, Float_t &maxAmpl,
+               Bool_t InvertPolarity) {
 
   // some parsed values used in process
-  Double_t Ampl;        //->x
-  Float_t Time = -1e10; //->t
-  Float_t p_Time;       // previous
+  Float_t Ampl;          //->x
+  Double_t Time = -1e10; //->t
+  Double_t p_Time;       // previous
   std::string l;
   std::string::size_type sz;
   char line[64];
@@ -200,8 +164,8 @@ Int_t ParseWfm(std::ifstream &InputFile, Int_t &fpos_Wfm, Int_t &fpos_h,
 
 void ProcessFile(const fs::path InputFilePath, TTree *PulseTree, Int_t &iSeg,
                  char Date[11], char Time[9], uint64_t &Time_10fs,
-                 std::vector<Double_t> &x, std::vector<Float_t> &t,
-                 Double_t Threshold = 0, bool InvertPolarity = 0) {
+                 std::vector<Float_t> &x, std::vector<Double_t> &t,
+                 Float_t Threshold = 0, Bool_t InvertPolarity = 0) {
   std::ifstream InputFile;
   InputFile.open(InputFilePath, std::fstream::in);
 
@@ -209,7 +173,7 @@ void ProcessFile(const fs::path InputFilePath, TTree *PulseTree, Int_t &iSeg,
   Int_t fpos_Wfm = 0; // position for reading wfm data
   Int_t n_Wfm;        // # of Wfms
   Int_t n_Seg;        // # of samples in Wfm ~ segment
-  Double_t maxAmpl;   // max amplitude in the processed waveform - it is used to
+  Float_t maxAmpl;    // max amplitude in the processed waveform - it is used to
                       // decide whether write wfm into the .root file
   GetFileInfo(InputFile, fpos_Wfm, fpos_h, n_Wfm, n_Seg);
   std::cout << "Processing - " << InputFilePath << std::endl;
@@ -233,15 +197,15 @@ void ProcessFile(const fs::path InputFilePath, TTree *PulseTree, Int_t &iSeg,
 // exported functions
 namespace osclec {
 void parseFiles(TDirectory *rootDir, std::set<fs::path> InputFileNames,
-                Double_t Threshold, Bool_t InvertPolarity) {
+                Float_t Threshold, Bool_t InvertPolarity) {
 
   // parsed variables
   Int_t iSeg;
   char Date[11];
   char Time[9];
   uint64_t Time_10fs;
-  std::vector<Double_t> x;
-  std::vector<Float_t> t;
+  std::vector<Float_t> x;
+  std::vector<Double_t> t;
 
   // init TTree and create branches
   TTree *PulseTree =

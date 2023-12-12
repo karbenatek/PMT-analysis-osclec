@@ -1,3 +1,4 @@
+#include "routines.h"
 #include <RtypesCore.h>
 #include <TDirectory.h>
 #include <TTree.h>
@@ -29,7 +30,7 @@ std::string ns_to_10fs(std::string s) {
       if (fractionalPart.at(5) >= 5) {
         // coerce
         fractionalPart.insert(5, ".");
-        Double_t fracDouble = round(std::stod(fractionalPart));
+        Float_t fracDouble = round(std::stod(fractionalPart));
         fractionalPart = std::to_string(static_cast<Int_t>(fracDouble));
       }
       // cut
@@ -75,7 +76,8 @@ void parseFile(fs::path InputCsvFilePath, TDirectory *outputRootDir) {
   // parsed variables
   uint64_t Time_10fs;          // time unit is 10fs which allows ~ 2 days range
   Double_t TimeOverTrigger_ns; // aka pulse length
-  Double_t Energy;
+  Float_t Energy;
+  Int_t Channel;
   char Date[11]; // in format yyyy-mm-dd
   char Time[9];  // in format hh:mm:ss
 
@@ -86,6 +88,7 @@ void parseFile(fs::path InputCsvFilePath, TDirectory *outputRootDir) {
   PMTAFTree->Branch("time_10fs", &Time_10fs);
   PMTAFTree->Branch("time_over_trigger_ns", &TimeOverTrigger_ns);
   PMTAFTree->Branch("energy", &Energy);
+  PMTAFTree->Branch("channel", &Channel);
   PMTAFTree->Branch("date", Date, "date/C", 10);
   PMTAFTree->Branch("time", Time, "time/C", 8);
 
@@ -96,6 +99,9 @@ void parseFile(fs::path InputCsvFilePath, TDirectory *outputRootDir) {
   Int_t i0, i1, iLength, iLast;
   std::string SubString;
   while (std::getline(InputCsvFile, EventLine)) {
+    // get Channel
+    Channel = stoi(EventLine);
+
     // get Date
     i1 = EventLine.size() - 2;
     i0 = EventLine.find_last_of(',') + 1;

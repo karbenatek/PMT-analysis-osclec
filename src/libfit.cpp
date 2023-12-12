@@ -20,35 +20,35 @@
 #include <vector>
 using namespace std;
 
-const int Nfpars = 9;
-const int Npars = 12;
+const Int_t Nfpars = 9;
+const Int_t Npars = 12;
 
 struct FitPars {
-  double Q0;
-  double sig0;
-  double Q1;
-  double sig1;
-  double w;
-  double alpha;
-  double mu;
-  double A;
+  Float_t Q0;
+  Float_t sig0;
+  Float_t Q1;
+  Float_t sig1;
+  Float_t w;
+  Float_t alpha;
+  Float_t mu;
+  Float_t A;
   const array<string, Nfpars> names = {"Q0", "sig0",  "Q1", "sig1",
                                        "w",  "alpha", "mu", "A"};
 };
 
 struct PrepPars {
-  Double_t Q0;
-  Double_t sig0;
-  Double_t Q1;
-  Double_t sig1;
-  Double_t Qv;
-  Double_t Qp;
-  Double_t Qstart;
-  Double_t Qend;
-  Double_t w;
-  Double_t alpha;
-  Double_t mu;
-  Double_t A;
+  Float_t Q0;
+  Float_t sig0;
+  Float_t Q1;
+  Float_t sig1;
+  Float_t Qv;
+  Float_t Qp;
+  Float_t Qstart;
+  Float_t Qend;
+  Float_t w;
+  Float_t alpha;
+  Float_t mu;
+  Float_t A;
   const array<string, Npars> parnames = {
       "Q0", "Q1", "Qv", "Qp", "Qend", "sig0", "sig1", "w", "alpha", "mu", "A"};
 };
@@ -74,8 +74,8 @@ filesystem::path getImgPath(string imgName, TDirectory *rootDir) {
       imgPath.parent_path().append(((string)rootDir->GetName()) + imgName);
   return imgPath;
 }
-Double_t getMeanAround(TH1D *h_Q, Int_t i, Int_t HalfWindth) {
-  Double_t Sum = 0;
+Float_t getMeanAround(TH1F *h_Q, Int_t i, Int_t HalfWindth) {
+  Float_t Sum = 0;
   Int_t N = 0;
   for (Int_t j = i - HalfWindth; j <= i + HalfWindth; j++) {
     if (j < 1 || j > h_Q->GetNbinsX())
@@ -87,7 +87,7 @@ Double_t getMeanAround(TH1D *h_Q, Int_t i, Int_t HalfWindth) {
   }
   return Sum / N;
 }
-void FindExtrPts(TH1D *h_Q0, TH1D *h_Qs, TH1D *h_dQ, Pts *pts,
+void FindExtrPts(TH1F *h_Q0, TH1F *h_Qs, TH1F *h_dQ, Pts *pts,
                  PrepPars *prepPars, int n_Smooth = 5, int n_dSmooth = 10) {
 
   TCanvas *c = new TCanvas("c");
@@ -112,7 +112,7 @@ void FindExtrPts(TH1D *h_Q0, TH1D *h_Qs, TH1D *h_dQ, Pts *pts,
   int i = pts->i_Q0 + 1;
   cout << h_Qs->GetBinContent(1) << endl;
   // exit(0);
-  Double_t bottom_threshold =
+  Float_t bottom_threshold =
       2; // i.e. bins with relative error greater than 25%
   // find local extremes in spectra
   while (getMeanAround(h_Qs, ++i, 2) >= bottom_threshold) {
@@ -235,7 +235,7 @@ void FindExtrPts(TH1D *h_Q0, TH1D *h_Qs, TH1D *h_dQ, Pts *pts,
   // exit(0);
 }
 
-inline void DrawFrame(TH1D *h_Q0, Pts pts) {
+inline void DrawFrame(TH1F *h_Q0, Pts pts) {
   TGraph *g_W = new TGraph();
   g_W->SetLineColor(1);
   g_W->SetLineWidth(1);
@@ -262,14 +262,14 @@ inline TF1 *InitFun(PrepPars *prepPars) {
   return f;
 }
 
-PrepPars ParEst1(TH1D *h_Q, TH1D *h_Qs, PrepPars prepPars, Pts pts) {
-  double Q0, Q1, Qv, Qp, Qend, sig0, sig1, w, alpha, mu, A;
+PrepPars ParEst1(TH1F *h_Q, TH1F *h_Qs, PrepPars prepPars, Pts pts) {
+  Float_t Q0, Q1, Qv, Qp, Qend, sig0, sig1, w, alpha, mu, A;
   h_Qs->Draw();
   h_Q->Draw("same");
   Q0 = prepPars.Q0;
   Qv = prepPars.Qv;
   Qp = prepPars.Qp;
-  int i_Qv = h_Q->FindBin(Qv), i_Qp = h_Q->FindBin(Qp);
+  Int_t i_Qv = h_Q->FindBin(Qv), i_Qp = h_Q->FindBin(Qp);
 
   Qend = prepPars.Qend;
   sig0 = (Qv - Q0) / 10;
@@ -292,8 +292,8 @@ PrepPars ParEst1(TH1D *h_Q, TH1D *h_Qs, PrepPars prepPars, Pts pts) {
   Q1 = Qp - Q0 - w / alpha;
   sig1 = (Qp - Qv) / 1.4;
 
-  TH1D *h_Qsig = (TH1D *)h_Qs->Clone("h_Qsig");
-  double dQ;
+  TH1F *h_Qsig = (TH1F *)h_Qs->Clone("h_Qsig");
+  Float_t dQ;
   for (int i = 0; i <= h_Q->GetNbinsX(); ++i)
     if (i >= i_Qv && i <= pts.i_Qend) {
       dQ = h_Qs->GetBinContent(i) - f_Nexp->Eval(h_Qs->GetBinCenter(i));
@@ -303,8 +303,8 @@ PrepPars ParEst1(TH1D *h_Q, TH1D *h_Qs, PrepPars prepPars, Pts pts) {
       h_Qsig->SetBinContent(i, 0);
   h_Qsig->ResetStats();
   h_Qsig->Draw("same hist");
-  double A1 = h_Qsig->GetMaximum();
-  double QA1 = h_Qsig->GetBinCenter(h_Qsig->GetMaximumBin());
+  Float_t A1 = h_Qsig->GetMaximum();
+  Float_t QA1 = h_Qsig->GetBinCenter(h_Qsig->GetMaximumBin());
 
   mu = A1 / A * sig1 * 2.5;
   // mu = 2;
@@ -481,13 +481,11 @@ void prnt(string s) {
   return;
 }
 
-PrepPars ParEst3(TH1D *h_Q, TH1D *h_Qs, TH1D *h_Qnoise, PrepPars prepPars,
-                 Pts pts) {
-  Double_t Q0, Q1, Qv, Qp, Qend, sig0, sig1, w, alpha, mu, A, Q_integ,
+PrepPars ParEst3(TH1F *h_Q, TH1F *h_Qs, PrepPars prepPars, Pts pts) {
+  Float_t Q0, Q1, Qv, Qp, Qend, sig0, sig1, w, alpha, mu, A, Q_integ,
       Qnoise_integ;
   h_Qs->Draw();
   h_Q->Draw("same");
-  h_Qnoise->Draw("same");
   Q0 = prepPars.Q0;
   Qv = prepPars.Qv;
   Qp = prepPars.Qp;
@@ -497,7 +495,7 @@ PrepPars ParEst3(TH1D *h_Q, TH1D *h_Qs, TH1D *h_Qnoise, PrepPars prepPars,
 
   sig0 = 0.5 * h_Q->GetBinWidth(0);
   alpha = 5 / (Qv - Q0);
-  Qnoise_integ = h_Qnoise->Integral();
+  Qnoise_integ = h_Q->Integral();
 
   A = Qnoise_integ;
 
@@ -510,8 +508,7 @@ PrepPars ParEst3(TH1D *h_Q, TH1D *h_Qs, TH1D *h_Qnoise, PrepPars prepPars,
   f_N->SetLineWidth(1);
   f_N->SetLineColor(6);
 
-  f_N->SetParLimits(0, -1 * h_Qnoise->GetBinWidth(1),
-                    1 * h_Qnoise->GetBinWidth(1));
+  f_N->SetParLimits(0, -1 * h_Q->GetBinWidth(1), 1 * h_Q->GetBinWidth(1));
   f_N->FixParameter(1, 0);
   f_N->FixParameter(2, 1);
   // f_N->SetParLimits(1, 0, 0.8 * h_Qnoise->GetBinWidth(1));
@@ -521,7 +518,7 @@ PrepPars ParEst3(TH1D *h_Q, TH1D *h_Qs, TH1D *h_Qnoise, PrepPars prepPars,
   f_N->SetParameters(0, sig0, w, alpha, A);
 
   cout << "\n\nFITTING NOISE\n";
-  h_Qnoise->Fit(f_N, "N", "", (Q0 + Qv) / 2, Qend);
+  h_Q->Fit(f_N, "N", "", (Q0 + Qv) / 2, Qv);
   f_N->Draw("same");
 
   for (int i = 0; i < 3; ++i)
@@ -573,45 +570,46 @@ PrepPars ParEst3(TH1D *h_Q, TH1D *h_Qs, TH1D *h_Qnoise, PrepPars prepPars,
   return newPars;
 }
 
-inline void SetPars(TF1 *f, PrepPars Pars, bool printout = false) {
+inline void SetPars(TF1 *f, PrepPars Pars, Bool_t printout = false) {
   // f->SetParameters(Pars.Q0, Pars.sig0, Pars.Q1, Pars.sig1, Pars.w,
   // Pars.alpha,
   //                  Pars.mu, Pars.A);
 
-  Double_t par[] = {Pars.Q0, Pars.sig0,  Pars.Q1, Pars.sig1,
-                    Pars.w,  Pars.alpha, Pars.mu, Pars.A};
+  Float_t par[] = {Pars.Q0, Pars.sig0,  Pars.Q1, Pars.sig1,
+                   Pars.w,  Pars.alpha, Pars.mu, Pars.A};
   for (int i = 0; i < f->GetNpar(); ++i) {
     cout << f->GetParName(i) << " = " << par[i] << endl;
     f->SetParameter(i, par[i]);
   }
 }
 
-void SetParLimFixs(TF1 *f, TH1D *h_Q, PrepPars Pars,
-                   array<bool, 8> fix = {0, 0, 0, 0, 0, 0, 0, 0},
-                   array<bool, 8> leave = {0, 0, 0, 0, 0, 0, 0, 0}) {
-  Double_t Q0 = Pars.Q0;
-  Double_t Q1 = Pars.Q1;
-  Double_t Qv = Pars.Qv;
-  Double_t Qp = Pars.Qp;
-  Double_t Qend = Pars.Qend;
-  Double_t Qstart = TMath::Abs(Pars.Qstart);
-  Double_t sig0 = Pars.sig0;
-  Double_t sig1 = Pars.sig1;
-  Double_t w = Pars.w;
-  Double_t alpha = Pars.alpha;
-  Double_t mu = Pars.mu;
-  Double_t A = Pars.A;
-  array<array<Double_t, 2>, 9> l;
+void SetParLimFixs(TF1 *f, TH1F *h_Q, PrepPars Pars,
+                   array<Bool_t, 8> fix = {0, 0, 0, 0, 0, 0, 0, 0},
+                   array<Bool_t, 8> leave = {0, 0, 0, 0, 0, 0, 0, 0}) {
+  Float_t Q0 = Pars.Q0;
+  Float_t Q1 = Pars.Q1;
+  Float_t Qv = Pars.Qv;
+  Float_t Qp = Pars.Qp;
+  Float_t Qend = Pars.Qend;
+  Float_t Qstart = TMath::Abs(Pars.Qstart);
+  Float_t sig0 = Pars.sig0;
+  Float_t sig1 = Pars.sig1;
+  Float_t w = Pars.w;
+  Float_t alpha = Pars.alpha;
+  Float_t mu = Pars.mu;
+  Float_t A = Pars.A;
+  array<array<Float_t, 2>, 9> l;
 
-  int i = 0;
-  l[i++] = {-0.02 * Qstart, 0.02 * Qstart};   // Q0
-  l[i++] = {0, Qstart * 0.5};                 // sig0
-  l[i++] = {0.8 * (Qp - Q0), 2 * (Qp - Q0)};  // Q1
-  l[i++] = {(Qp - Qv) * 0.1, (Qp - Qv) * 10}; // sig1
-  l[i++] = {0.005, 0.99};                     // w
-  l[i++] = {0, 1000 / (Qv - Q0)};             // aplha
-  l[i++] = {0, 0.5};                          // mu
-  l[i++] = {A / 100, A * 100};                // A
+  Int_t i = 0;
+  l[i++] = {static_cast<float>(-0.02 * Qstart),
+            static_cast<float>(0.02 * Qstart)};                   // Q0
+  l[i++] = {0, static_cast<float>(Qstart * 0.5)};                 // sig0
+  l[i++] = {static_cast<float>(0.8 * (Qp - Q0)), 2 * (Qp - Q0)};  // Q1
+  l[i++] = {static_cast<float>((Qp - Qv) * 0.1), (Qp - Qv) * 10}; // sig1
+  l[i++] = {0.005, 0.99};                                         // w
+  l[i++] = {0, 1000 / (Qv - Q0)};                                 // aplha
+  l[i++] = {0, 0.5};                                              // mu
+  l[i++] = {A / 100, A * 100};                                    // A
 
   for (int i = 0; i < f->GetNpar(); ++i) {
     if (leave[i])
@@ -626,9 +624,9 @@ void SetParLimFixs(TF1 *f, TH1D *h_Q, PrepPars Pars,
   }
 }
 
-TFitResult *FitCompare(TH1D *h_Q, TF1 *f_Q, vector<PrepPars> v_prepPars) {
+TFitResult *FitCompare(TH1F *h_Q, TF1 *f_Q, vector<PrepPars> v_prepPars) {
   int i_best = 0, i = 0;
-  float chi = 1e100;
+  Double_t chi = 1e100;
   TFitResultPtr r;
   TFitResult *r_best = new TFitResult();
   for (auto Pars : v_prepPars) {
@@ -656,14 +654,14 @@ TFitResult *FitCompare(TH1D *h_Q, TF1 *f_Q, vector<PrepPars> v_prepPars) {
 }
 
 void Drawfun(TF1 *f, TLegend *leg, int n = 10) {
-  double Q0 = f->GetParameter("Q0");
-  double sig0 = f->GetParameter("sig0");
-  double Q1 = f->GetParameter("Q1");
-  double sig1 = f->GetParameter("sig1");
-  double w = f->GetParameter("w");
-  double alpha = f->GetParameter("alpha");
-  double mu = f->GetParameter("mu");
-  double A = f->GetParameter("A");
+  Float_t Q0 = f->GetParameter("Q0");
+  Float_t sig0 = f->GetParameter("sig0");
+  Float_t Q1 = f->GetParameter("Q1");
+  Float_t sig1 = f->GetParameter("sig1");
+  Float_t w = f->GetParameter("w");
+  Float_t alpha = f->GetParameter("alpha");
+  Float_t mu = f->GetParameter("mu");
+  Float_t A = f->GetParameter("A");
 
   f->SetLineWidth(2);
   f->SetLineColor(2);
@@ -706,6 +704,16 @@ TH1D *LoadTH1D(TDirectory *rootDir, std::string HistName) {
   return h;
 }
 
+TH1F *LoadTH1F(TDirectory *rootDir, std::string HistName) {
+  TH1F *h = rootDir->Get<TH1F>(HistName.c_str());
+  if (rootDir->Get("h_Q") == nullptr) {
+    cout << "Histogram " << HistName << " not found in TDirectory "
+         << rootDir->GetName() << endl;
+    exit(1);
+  }
+  return h;
+}
+
 void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
             string histName, Int_t n_smooth) {
   FitPars *fitPars = new FitPars;
@@ -713,19 +721,18 @@ void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
   Pts *pts = new Pts;
 
   // Load histogram
-  TH1D *h_Q = LoadTH1D(inputRootDir, histName);
+  TH1F *h_Q = LoadTH1F(inputRootDir, histName);
 
-  TH1D *h_Qnoise = LoadTH1D(inputRootDir, histName + "noise");
+  TH1F *h_Qnoise = LoadTH1F(inputRootDir, histName + "noise");
 
-  vector<int> v_all[4];
-  vector<int> *v_Qp = &v_all[0], *v_Qv = &v_all[1], *v_dQp = &v_all[2],
-              *v_dQv = &v_all[3];
+  vector<Int_t> v_all[4];
+  vector<Int_t> *v_Qp = &v_all[0], *v_Qv = &v_all[1], *v_dQp = &v_all[2],
+                *v_dQv = &v_all[3];
 
   // Clone histogram
-  TH1D *h_Q0 = (TH1D *)h_Q->Clone("h_Q0");
-  TH1D *h_Qs = (TH1D *)h_Q->Clone("h_Qs"); // smoothed (in FindExtrPts)
-  // h_Qs->Smooth(10);
-  TH1D *h_dQ = (TH1D *)h_Q->Clone("h_dQ"); // diferencial
+  TH1F *h_Q0 = (TH1F *)h_Q->Clone("h_Q0");
+  TH1F *h_Qs = (TH1F *)h_Q->Clone("h_Qs"); // smoothed (in FindExtrPts)
+  TH1F *h_dQ = (TH1F *)h_Q->Clone("h_dQ"); // diferencial
 
   FindExtrPts(h_Q0, h_Qs, h_dQ, pts, prepPars, n_smooth, n_smooth);
 
@@ -775,7 +782,7 @@ void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
   // v_prepPars.push_back(ParEst2(h_Q0, h_Qs, *prepPars, *pts));
 
   c_est->cd(3);
-  v_prepPars.push_back(ParEst3(h_Q0, h_Qs, h_Qnoise, *prepPars, *pts));
+  v_prepPars.push_back(ParEst3(h_Q0, h_Qs, *prepPars, *pts));
   c_est->Print(getImgPath("estim.pdf", outputRootDir).c_str());
 
   // AddParsFromFile("data/m1/G/940/fit_940.json", v_Pars, pars);

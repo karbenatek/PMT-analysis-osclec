@@ -8,7 +8,7 @@ namespace fs = std::filesystem;
 namespace osclec {
 
 void parseFiles(TDirectory *rootDir, std::set<fs::path> inputFileNames,
-                Double_t thr, Bool_t InvertPolarity);
+                Float_t thr, Bool_t InvertPolarity);
 } // namespace osclec
 
 #endif

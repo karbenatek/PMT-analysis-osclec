@@ -10,10 +10,10 @@ ROOTFLAGS :=`root-config --cflags` -I$(CONAN_INCLUDE_DIRS)
 ROOTLIBS :=`root-config --libs`
 
 # objects definition
-LIB_OBJS = $(LIB_DIR)/libosclec.o $(LIB_DIR)/libfit.o $(LIB_DIR)/libanalis.o $(LIB_DIR)/libinfn.o
+LIB_OBJS = $(LIB_DIR)/libosclec.o $(LIB_DIR)/libfit.o $(LIB_DIR)/libanalis.o $(LIB_DIR)/libinfn.o $(LIB_DIR)/routines.o
 SRC_INCS = $(SRC_DIR)/routines.cpp
-SRC = $(SRC_DIR)/pma.cpp
-TARGET = $(BIN_DIR)/pma
+SRC = $(SRC_DIR)/pmta.cpp
+TARGET = $(BIN_DIR)/pmta
 
 # create parrent path of the rule
 dir_guard=@mkdir -p $(@D)
@@ -30,8 +30,8 @@ debug: $(TARGET)
 
 # some run command for testing or debugind
 test: $(TARGET)
-	# pma mess/3peDR_analysis.root -c mess/cfg.toml
-	pma -c mess/cfgtest.toml -r
+	# pmta mess/3peDR_analysis.root -c mess/cfg.toml
+	pmta -c mess/cfgtest.toml -r
 
 # compile all lib objects defined under $(LIB_OBJS) 
 build_libs: $(LIB_OBJS)

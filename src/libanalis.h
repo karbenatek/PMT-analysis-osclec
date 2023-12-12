@@ -1,20 +1,24 @@
 #ifndef LIBANALIS_H
 #define LIBANALIS_H
 
+#include <RtypesCore.h>
 #include <TDirectory.h>
 
-namespace pmanalysis {
-void doPulseAnalysis(TDirectory *inputRootDir, TDirectory *outputRootDir,
-                     const Int_t bins_ampl, const Int_t bins_Q,
-                     const Int_t bins_Qnoise, const Double_t threshold,
-                     const Double_t max_ampl, const Double_t cut_fraction);
+namespace pmta {
+void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
+                        const Float_t Threshold, const Float_t CutFraction,
+                        const Bool_t UseTotalTime);
+
+void getHistogram(TDirectory *InputRootDir, TDirectory *OutputRootDir,
+                  std::string BranchName, Int_t Bins, Double_t XLow = 0,
+                  Double_t XHigh = 0);
 
 Double_t GetDarkRate(TDirectory *drDir, TDirectory *spDir,
-                     TDirectory *outputRootDir, const Double_t pe_threshold);
+                     TDirectory *outputRootDir, const Float_t pe_threshold);
 
 void doAfterPulseAnalysis(TDirectory *inputRootDir, TDirectory *outputRootDir,
-                          const Double_t threshold,
-                          const Float_t pulse_length_threshold);
-} // namespace pmanalysis
+                          const Float_t threshold,
+                          const Double_t pulse_length_threshold);
+} // namespace pmta
 
 #endif // LIBANALIS_H
