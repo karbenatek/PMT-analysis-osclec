@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include <iostream>
 // #include <iterator>
+#include <iterator>
 #include <map>
 #include <ostream>
 #include <string>
@@ -287,7 +288,7 @@ private:
     return rootDir;
   }
 
-  // MODULES //
+  // ##### MODULES #####
   void runOscLecConverter() {
     TDirectory *outputRootDir;
     toml::table MeasurementNames = *cfg["osclec_converter"].as_table();
@@ -385,8 +386,8 @@ private:
       inputRootDir = getDir(MeasurementName, ParameterTable, false);
       outputRootDir = getDir(MeasurementName, ParameterTable, true);
 
-      pmta::getHistogram(inputRootDir, outputRootDir, BranchName, Bins, XLow,
-                         XHigh);
+      pmta::makeTH1F(inputRootDir, outputRootDir, BranchName, Bins, XLow,
+                     XHigh);
 
       inputRootDir->GetFile()->Close();
       outputRootDir->GetFile()->Close();
@@ -396,13 +397,13 @@ private:
   void runSinglephotonFit() {
     TDirectory *inputRootDir;
     TDirectory *outputRootDir;
-    toml::table MeasurementNames = *cfg["singlephoton_fit"].as_table();
+    toml::table MeasurementNames = *cfg["spe_fit"].as_table();
 
     for (const auto &element : MeasurementNames) {
       // parse parameters
       std::string MeasurementName = element.first.data();
       toml::table ParTable = *element.second.as_table();
-      std::string histName = "h_Q";
+      std::string histName = "energy";
       if (ParTable["hist_name"].is_string())
         histName = *ParTable["hist_name"].value<std::string>();
       Int_t nSmooth = 5;
@@ -418,6 +419,7 @@ private:
       outputRootDir->GetFile()->Close();
     }
   }
+
   void runGaussFit() {
     TDirectory *inputRootDir;
     TDirectory *outputRootDir;
@@ -427,17 +429,42 @@ private:
     for (const auto &element : MeasurementNames) {
       // parse parameters
       std::string MeasurementName = element.first.data();
-      toml::table ParTable = *element.second.as_table();
+      toml::table ParameterTable = *element.second.as_table();
       // attach i/o TDirectories
-      inputRootDir = getDir(MeasurementName, ParTable, false);
-      outputRootDir = getDir(MeasurementName, ParTable, true);
+      inputRootDir = getDir(MeasurementName, ParameterTable, false);
+      outputRootDir = getDir(MeasurementName, ParameterTable, true);
+      std::string HistName = toml::getString(ParameterTable, "hist_name");
 
-      FitGauss(inputRootDir, outputRootDir);
+      FitGauss(inputRootDir, outputRootDir, HistName);
       inputRootDir->GetFile()->Close();
       outputRootDir->GetFile()->Close();
     }
   }
-  void runDarkrate() {
+
+  void runGaussFromRightFit() {
+    TDirectory *inputRootDir;
+    TDirectory *outputRootDir;
+
+    toml::table MeasurementNames = *cfg["gauss_from_right_fit"].as_table();
+
+    for (const auto &element : MeasurementNames) {
+      // parse parameters
+      std::string MeasurementName = element.first.data();
+      toml::table ParameterTable = *element.second.as_table();
+
+      // attach i/o TDirectories
+      inputRootDir = getDir(MeasurementName, ParameterTable, false);
+      outputRootDir = getDir(MeasurementName, ParameterTable, true);
+      Int_t nSmooth = toml::getInt(ParameterTable, "n_smooth");
+      std::string HistName = toml::getString(ParameterTable, "hist_name");
+
+      FitRightGauss(inputRootDir, outputRootDir, HistName, nSmooth);
+      inputRootDir->GetFile()->Close();
+      outputRootDir->GetFile()->Close();
+    }
+  }
+
+  void getDarkRate() {
     toml::table MeasurementNames = *cfg["darkrate"].as_table();
     TDirectory *spRootDir;
     TDirectory *drRootDir;
@@ -445,13 +472,18 @@ private:
     for (const auto &element : MeasurementNames) {
       std::string MeasurementName = element.first.data();
       // parse parameters
-      toml::table ParTable = *element.second.as_table();
-      Double_t pe_threshold = *ParTable["pe_threshold"].value<Double_t>();
-      drRootDir = getDir(MeasurementName, ParTable, false);
-      spRootDir = getDir(ParTable, "sp_file_path", "sp_measurement_name");
-      outputRootDir = getDir(MeasurementName, ParTable, true);
-      exit(0);
-      pmta::GetDarkRate(drRootDir, spRootDir, outputRootDir, pe_threshold);
+      toml::table ParameterTable = *element.second.as_table();
+      std::string BranchName = toml::getString(ParameterTable, "branch_name");
+      Double_t Threshold = toml::getDouble(ParameterTable, "threshold");
+      Bool_t UseSPEThreshold =
+          toml::getBool(ParameterTable, "use_spe_threshold");
+
+      drRootDir = getDir(MeasurementName, ParameterTable, false);
+      spRootDir = getDir(ParameterTable, "sp_file_path", "sp_measurement_name");
+      outputRootDir = getDir(MeasurementName, ParameterTable, true);
+
+      pmta::GetDarkRate(drRootDir, spRootDir, outputRootDir, BranchName,
+                        Threshold, UseSPEThreshold);
       drRootDir->GetFile()->Close();
       spRootDir->GetFile()->Close();
       outputRootDir->GetFile()->Close();
@@ -485,14 +517,16 @@ private:
     // define map of available modules
     moduleMap = {
         {"osclec_converter", {0, [this]() { this->runOscLecConverter(); }}},
-        {"infn_converter", {0, [this]() { this->runINFNConverter(); }}},
+        {"infn_converter", {1, [this]() { this->runINFNConverter(); }}},
         {"pulse_analysis", {1, [this]() { this->runPulseAnalysis(); }}},
         {"get_hist", {2, [this]() { this->getHistogram(); }}},
         {"afterpulse_analysis",
          {2, [this]() { this->runAfterPulseAnalysis(); }}},
-        {"singlephoton_fit", {3, [this]() { this->runSinglephotonFit(); }}},
-        {"gauss_fit", {3, [this]() { this->runGaussFit(); }}},
-        {"darkrate", {4, [this]() { this->runDarkrate(); }}},
+        {"spe_fit", {3, [this]() { this->runSinglephotonFit(); }}},
+        {"gauss_fit", {4, [this]() { this->runGaussFit(); }}},
+        {"gauss_from_right_fit",
+         {4, [this]() { this->runGaussFromRightFit(); }}},
+        {"darkrate", {4, [this]() { this->getDarkRate(); }}},
         // pattern: {"module_name", {priority, [this]() {
         // this->moduleFunction(); }}}, priority defines the order of module
         // execution
@@ -526,10 +560,10 @@ private:
     return modules;
   };
 
+  /*
+  run modules ordered by priority
+  */
   void runModules() {
-    /*
-    run modules ordered by priority
-    */
 
     // get modules in cfg
     toml::table module_table = *cfg.as_table();

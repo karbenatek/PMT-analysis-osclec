@@ -10,7 +10,7 @@ ROOTFLAGS :=`root-config --cflags` -I$(CONAN_INCLUDE_DIRS)
 ROOTLIBS :=`root-config --libs`
 
 # objects definition
-LIB_OBJS = $(LIB_DIR)/libosclec.o $(LIB_DIR)/libfit.o $(LIB_DIR)/libanalis.o $(LIB_DIR)/libinfn.o $(LIB_DIR)/routines.o
+LIB_OBJS = $(LIB_DIR)/routines.o $(LIB_DIR)/libosclec.o $(LIB_DIR)/libfit.o $(LIB_DIR)/libanalis.o $(LIB_DIR)/libinfn.o
 SRC_INCS = $(SRC_DIR)/routines.cpp
 SRC = $(SRC_DIR)/pmta.cpp
 TARGET = $(BIN_DIR)/pmta
@@ -31,13 +31,14 @@ debug: $(TARGET)
 # some run command for testing or debugind
 test: $(TARGET)
 	# pmta mess/3peDR_analysis.root -c mess/cfg.toml
-	pmta -c mess/cfgtest.toml -r
+	# pmta -c mess/cfgtest.toml -r
+	pmta -c mess/test_dr.toml
 
-# compile all lib objects defined under $(LIB_OBJS) 
+# make all lib objects defined under $(LIB_OBJS) 	
 build_libs: $(LIB_OBJS)
 
 # compile lib object
-$(LIB_DIR)/%.o: $(SRC_DIR)/%.cpp
+$(LIB_DIR)/%.o: $(SRC_DIR)/%.cpp $(SRC_DIR)/routines.h
 	$(dir_guard)
 	$(CXX) $(ROOTFLAGS) -c $< -o $@ $(ROOTLIBS)
 

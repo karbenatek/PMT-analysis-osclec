@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <ostream>
+#include <string>
 namespace fs = std::filesystem;
 #include <TFile.h>
 #include <TTree.h>
@@ -120,13 +121,7 @@ Int_t ParseWfm(std::ifstream &InputFile, Int_t &fpos_Wfm, Int_t &fpos_h,
   l = l.substr(l.find_first_of(',') + 1);
   l = l.substr(0, l.find_first_of(','));
 
-  // std::cout << _GlobalTime << std::endl;
-
-  // l = l.substr(21, getLastDigitIndex(l) - 1);
-
-  // std::cout << l << "U" << std::endl;
-
-  Time_10fs = stoull(s_to_10fs(l));
+  Time_10fs = stoull(s_to_10fs(std::stod(l)));
 
   // Time_10fs = 5;
   fpos_h = InputFile.tellg();

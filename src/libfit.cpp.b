@@ -16,7 +16,6 @@
 #include <TObjString.h>
 #include <TParameter.h>
 #include <TStyle.h>
-#include <TVirtualPad.h>
 #include <filesystem>
 #include <iostream>
 #include <ostream>
@@ -85,41 +84,73 @@ Float_t getMeanAround(TH1F *h_Q, Int_t i, Int_t HalfWindth) {
   }
   return Sum / N;
 }
-void findPeakValey(TH1F *h_Q0, TH1F *h_Qs, TH1F *h_dQ, Pts *pts,
-                   PrepPars *prepPars, int n_Smooth = 5, int n_dSmooth = 10,
-                   Bool_t PedestalAtZero = true) {
+void FindExtrPts(TH1F *h_Q0, TH1F *h_Qs, TH1F *h_dQ, Pts *pts,
+                 PrepPars *prepPars, int n_Smooth = 5, int n_dSmooth = 10) {
 
   TCanvas *c = new TCanvas("c");
   h_Qs->Smooth(n_Smooth);
+  // h_Qs->Smooth(n_Smooth);
+  // h_Qs->ResetStats();
 
-  // get low odge value of histogram
+  // h_Qs->Draw();
+
+  // exit(0);
+  // go to Q0 -> pedestal gauss peak
+  //  while ( h_Qs->GetBinContent(i) < h_Qs->GetBinContent(i+1)) ++i;
   prepPars->Qstart = h_Qs->GetBinLowEdge(1);
+  // std::cout << prepPars->Qstart << std::endl;
+  // exit(0);
 
-  // get pedestal
-  if (PedestalAtZero)
-    pts->i_Q0 = h_Qs->FindBin(0) + 1;
-  // else ... find high narrow peak :) ... TBD
+  pts->i_Q0 = h_Qs->FindBin(0) + 1;
+  std::cout << pts->i_Q0 << std::endl;
+  // exit(0);
 
   std::cout << "i_Q0 = " << pts->i_Q0 << std::endl;
   int i = pts->i_Q0 + 1;
   std::cout << h_Qs->GetBinContent(1) << std::endl;
-
-  Float_t bottom_threshold = 2; // to determine high edge of energy spectrum
+  // exit(0);
+  Float_t bottom_threshold =
+      2; // i.e. bins with relative error greater than 25%
 
   // find local extremes in histogram
   while (getMeanAround(h_Qs, ++i, 2) >= bottom_threshold) {
-    // valeys
     if (h_Qs->GetBinContent(i - 1) > h_Qs->GetBinContent(i) &&
         h_Qs->GetBinContent(i) < h_Qs->GetBinContent(i + 1)) {
       pts->vi_Qvaley->push_back(i);
+      std::cout << "\nAdded valley i: " << i << std::endl;
+      std::cout << "Content:" << std::endl;
+      std::cout << h_Qs->GetBinContent(i - 1) << " : " << h_Qs->GetBinContent(i)
+                << " : " << h_Qs->GetBinContent(i + 1) << std::endl;
+      std::cout << "Center:" << std::endl;
+      std::cout << h_Qs->GetBinCenter(i - 1) << " : " << h_Qs->GetBinCenter(i)
+                << " : " << h_Qs->GetBinCenter(i + 1) << std::endl;
     }
-    // peaks
+
     if (h_Qs->GetBinContent(i - 1) < h_Qs->GetBinContent(i) &&
         h_Qs->GetBinContent(i) >= h_Qs->GetBinContent(i + 1))
       pts->vi_Qpeak->push_back(i);
   }
   pts->i_Qend = i;
   std::cout << "i_end = " << i << std::endl;
+  // In case that peak is before valey, take look to h_Q (not smoothed)
+  // In h_Qs, a peak can be smoothed so there is no local extreme
+
+  if (not pts->vi_Qvaley->empty() && not pts->vi_Qpeak->empty()) {
+    if (pts->vi_Qvaley->at(0) >= pts->vi_Qpeak->at(0)) {
+      i = pts->vi_Qpeak->at(0);
+      while (i > 4 && h_Qs->GetBinContent(i) > h_Qs->GetBinContent(i - 1))
+        --i;
+      pts->vi_Qvaley->insert(pts->vi_Qvaley->begin(), i);
+    }
+  }
+
+  // If no valey found, set it next to the right from pedestal
+  if (pts->vi_Qvaley->empty())
+    pts->vi_Qvaley->push_back(pts->i_Q0 + 1);
+
+  // If the first valey is after peak, set it next to the right from pedestal
+  if (pts->vi_Qvaley->begin() > pts->vi_Qpeak->begin())
+    pts->vi_Qvaley->at(0) = pts->i_Q0 + 1;
 
   // Fill local extremes into TGraph objects
   // Peaks
@@ -165,21 +196,14 @@ void findPeakValey(TH1F *h_Q0, TH1F *h_Qs, TH1F *h_dQ, Pts *pts,
   }
 
   //   int i_Qv, i_Qp;
-  // Set first valey found as a valey
-  if (not pts->vi_Qvaley->empty()) {
+  // Set first valey/peak found as a valey/peak
+  if (not pts->vi_Qvaley->empty() && not pts->vi_Qpeak->empty()) {
     pts->i_Qvaley = pts->vi_Qvaley->at(0);
-  }
-  // If there are none, take it from inflection points
-  else {
-    pts->i_Qvaley = pts->vi_Qvaley->at(0);
-  }
-
-  // Set first peak found as a peak
-  if (not pts->vi_Qpeak->empty()) {
     pts->i_Qpeak = pts->vi_Qpeak->at(0);
   }
   // If there are none, take it from inflection points
   else {
+    pts->i_Qvaley = pts->vi_Qvaley->at(0);
     pts->i_Qpeak = pts->vi_Qpeak->at(0);
   }
 
@@ -219,6 +243,8 @@ void findPeakValey(TH1F *h_Q0, TH1F *h_Qs, TH1F *h_dQ, Pts *pts,
   pts->g_Qpeaks->Print();
   pts->g_Qvaleys->Print();
   c->SetLogy();
+  // c->Print("c.pdf");
+  // exit(0);
 }
 
 inline void DrawFrame(TH1F *h_Q0, Pts pts) {
@@ -475,7 +501,6 @@ PrepPars ParEst3(TH1F *h_Q, PrepPars prepPars, Pts pts) {
   Float_t Q0, Q1, Qv, Qp, Qend, sig0, sig1, w, alpha, mu, A, Q_integ,
       Qnoise_integ;
   h_Q->Draw("same");
-  gPad->SetLogy();
   Q0 = prepPars.Q0;
   Qv = prepPars.Qv;
   Qp = prepPars.Qp;
@@ -495,8 +520,8 @@ PrepPars ParEst3(TH1F *h_Q, PrepPars prepPars, Pts pts) {
   f_N->SetParNames("Q0", "sig0", "w", "alpha", "A");
   //~ f_N->SetLineWidth(1);
   f_N->SetLineStyle(1);
-  f_N->SetLineColor(4);
   f_N->SetLineWidth(1);
+  f_N->SetLineColor(6);
 
   f_N->SetParLimits(0, -1 * h_Q->GetBinWidth(1), 1 * h_Q->GetBinWidth(1));
   f_N->FixParameter(1, 0);
@@ -506,10 +531,10 @@ PrepPars ParEst3(TH1F *h_Q, PrepPars prepPars, Pts pts) {
   f_N->SetParLimits(3, 0, 50 / (Qv - Q0));
 
   f_N->SetParameters(0, sig0, w, alpha, A);
-  // f_N->SetLineStyle(1);
 
   std::cout << "\n\nFITTING NOISE\n";
   h_Q->Fit(f_N, "N", "", (Q0 + Qv) / 2, Qv);
+  f_N->Draw("same");
 
   for (int i = 0; i < 3; ++i)
     f_N->FixParameter(i, f_N->GetParameter(i));
@@ -541,7 +566,6 @@ PrepPars ParEst3(TH1F *h_Q, PrepPars prepPars, Pts pts) {
   f_sig->FixParameter(6, mu); // noise/all? :)
   f_sig->SetParameter(7, A);
   h_Q->Fit(f_sig, "N", "", Qv / 2, Qend);
-
   f_sig->Draw("same");
 
   PrepPars newPars;
@@ -723,10 +747,10 @@ void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
 
   // Clone histogram
   TH1F *h_Q0 = (TH1F *)h_Q->Clone("h_Q0");
-  TH1F *h_Qs = (TH1F *)h_Q->Clone("h_Qs"); // smoothed (in findPeakValey)
+  TH1F *h_Qs = (TH1F *)h_Q->Clone("h_Qs"); // smoothed (in FindExtrPts)
   TH1F *h_dQ = (TH1F *)h_Q->Clone("h_dQ"); // diferencial
 
-  findPeakValey(h_Q0, h_Qs, h_dQ, pts, prepPars, n_smooth, n_smooth);
+  FindExtrPts(h_Q0, h_Qs, h_dQ, pts, prepPars, n_smooth, n_smooth);
 
   TCanvas *c_ei =
       new TCanvas("c", "Extremes and inflection points", 1000, 1400);
@@ -756,7 +780,7 @@ void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
   c_ei->SetLogy();
   c_ei->Print(
       addAppendixToRelativeFilePath("_extr.pdf", outputRootDir).c_str());
-  // exit(0);
+  exit(0);
 
   //   c_ei->Print("out.pdf");
 
@@ -778,7 +802,7 @@ void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
   c_est->cd(3);
   v_prepPars.push_back(ParEst3(h_Q0, *prepPars, *pts));
   c_est->Print(
-      addAppendixToRelativeFilePath("_estim.pdf", outputRootDir).c_str());
+      addAppendixToRelativeFilePath("estim.pdf", outputRootDir).c_str());
 
   // AddParsFromFile("data/m1/G/940/fit_940.json", v_Pars, pars);
   // AddParsFromFile("data/m1/G/860/fit_860.json", v_Pars, pars);
@@ -890,7 +914,7 @@ void FitGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
               std::string HistName) {
   TCanvas *c = new TCanvas();
   inputRootDir->ls();
-  TH1F *Hist = LoadHist<TH1F>(inputRootDir, HistName);
+  TH1F *Hist = LoadTH1F(inputRootDir, HistName.c_str());
   TF1 *f2 = new TF1("Gauss", "gaus");
   // f->SetParameter(0, h_Q->GetMaximum());
   // f->SetParameter(1, h_Q->GetMean());
@@ -903,42 +927,40 @@ void FitGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
                .c_str());
 }
 
-void FitRightGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
-                   std::string HistName, Int_t nSmooth) {
+void FitGauss_fromRight(TDirectory *rootDir) {
   TCanvas *c = new TCanvas();
-  TH1F *Hist = LoadHist<TH1F>(inputRootDir, HistName);
-
-  TH1D *HistSmoothed = (TH1D *)Hist->Clone("h_Qs");
-  HistSmoothed->Smooth(nSmooth);
-  HistSmoothed->SetLineColor(8);
+  TH1D *h_Q = LoadTH1D(rootDir, "h_Q");
+  TH1D *h_Qs = (TH1D *)h_Q->Clone("h_Qs");
+  h_Qs->SetLineColor(8);
   TGraph *g_Chi2 = new TGraph();
   TGraph *g_A = new TGraph();
   TGraph *g_sig = new TGraph();
-  TF1 *f = getExp_Gauss(Hist->GetBinCenter(Hist->GetNbinsX()));
+  TF1 *f = getExp_Gauss(h_Q->GetBinCenter(h_Q->GetNbinsX()));
 
-  // HistSmoothed->Draw();
+  h_Qs->Smooth(5);
+  // h_Qs->Draw();
   Double_t A, mu, sig, w, alpha;
 
   Int_t bins_from_right = 5;
-  Int_t bins_from_left = Hist->FindBin(0) + 5;
-  Int_t most_right_bin = Hist->GetNbinsX();
+  Int_t bins_from_left = h_Q->FindBin(0) + 5;
+  Int_t most_right_bin = h_Q->GetNbinsX();
   Double_t Chi2_limit = 1.5;
   GausPars BestPars;
 
   while (BestPars.Chi2 > Chi2_limit) {
     for (Int_t h_i = most_right_bin - bins_from_right; h_i >= bins_from_left;
          --h_i) {
-      if (HistSmoothed->GetBinContent(h_i) < 50)
+      if (h_Qs->GetBinContent(h_i) < 50)
         continue;
-      f->FixParameter(0, HistSmoothed->GetBinContent(h_i));
-      // f->SetParLimits(0, 16, HistSmoothed->GetMaximum());
-      f->FixParameter(1, Hist->GetBinCenter(h_i));
-      f->SetParameter(2, (most_right_bin - h_i) * Hist->GetBinWidth(1) / 2.);
-      f->SetParLimits(2, 0, (most_right_bin - h_i) * Hist->GetBinWidth(1));
+      f->FixParameter(0, h_Qs->GetBinContent(h_i));
+      // f->SetParLimits(0, 16, h_Qs->GetMaximum());
+      f->FixParameter(1, h_Q->GetBinCenter(h_i));
+      f->SetParameter(2, (most_right_bin - h_i) * h_Q->GetBinWidth(1) / 2.);
+      f->SetParLimits(2, 0, (most_right_bin - h_i) * h_Q->GetBinWidth(1));
       f->FixParameter(3, 0);
       f->FixParameter(4, 0);
-      HistSmoothed->Fit(f, "Q N", "", Hist->GetBinCenter(h_i),
-                        Hist->GetBinCenter(most_right_bin));
+      h_Qs->Fit(f, "Q N", "", h_Q->GetBinCenter(h_i),
+                h_Q->GetBinCenter(most_right_bin));
 
       // GoodPars.push_back(GausPars());
       // GoodPars.back().A = f->GetParameter("A");
@@ -955,10 +977,10 @@ void FitRightGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
         std::cout << "Chi2 = " << BestPars.Chi2 << "\t,\t"
                   << "A = " << BestPars.A << std::endl;
       }
-      g_A->AddPoint(Hist->GetBinCenter(h_i), f->GetParameter("A"));
-      g_sig->AddPoint(Hist->GetBinCenter(h_i), f->GetParameter("sig"));
-      g_Chi2->AddPoint(Hist->GetBinCenter(h_i),
-                       f->GetChisquare() / f->GetNDF());
+      // g_A->AddPoint(h_Q->GetBinCenter(h_i), f->GetParameter("A"));
+      // g_sig->AddPoint(h_Q->GetBinCenter(h_i), f->GetParameter("sig"));
+      // g_Chi2->AddPoint(h_Q->GetBinCenter(h_i), f->GetChisquare() /
+      // f->GetNDF());
     }
     std::cout << "Chi2_limit = " << Chi2_limit << "\t";
     std::cout << "Chi2_best = " << BestPars.Chi2 << std::endl;
@@ -975,8 +997,8 @@ void FitRightGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
   f->SetParameter(2, BestPars.sig);
   f->SetParLimits(2, BestPars.sig * 0.5, BestPars.sig * 1.5);
 
-  Hist->Fit(f, "Q", "", BestPars.mu - BestPars.sig * 0.3,
-            Hist->GetBinCenter(most_right_bin));
+  h_Q->Fit(f, "Q", "", BestPars.mu - BestPars.sig * 0.3,
+           h_Q->GetBinCenter(most_right_bin));
 
   BestPars.Chi2 = f->GetChisquare() / f->GetNDF();
   BestPars.A = f->GetParameter("A");
@@ -984,36 +1006,29 @@ void FitRightGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
   BestPars.sig = f->GetParameter("sig");
   // TF1 *f2 = new TF1("Gauss", "gaus");
   // // f->ReleaseParameter(0);
-  // // f->SetParameter(0, Hist->GetMaximum());
+  // // f->SetParameter(0, h_Q->GetMaximum());
   // // f->ReleaseParameter(1);
-  // // f->SetParameter(1, Hist->GetMean());
+  // // f->SetParameter(1, h_Q->GetMean());
   // // f->ReleaseParameter(2);
-  // // f->SetParameter(2, Hist->GetStdDev());
-  // Hist->Fit(f2, "N Q", "");
+  // // f->SetParameter(2, h_Q->GetStdDev());
+  // h_Q->Fit(f2, "N Q", "");
   // std::cout << f2->GetChisquare() / f2->GetNDF() << std::endl;
 
-  g_sig->Draw();
-  c->Print(
-      addAppendixToRelativeFilePath("_gaussrightfit_sig.pdf", outputRootDir)
-          .c_str());
-  c->Clear();
-  g_A->Draw();
-  c->Print(addAppendixToRelativeFilePath("_gaussrightfit_A.pdf", outputRootDir)
-               .c_str());
-  c->Clear();
-  g_Chi2->Draw();
-  g_Chi2->GetYaxis()->SetRangeUser(0, 2);
-  c->Print(
-      addAppendixToRelativeFilePath("_gaussrightfit_Chi2.pdf", outputRootDir)
-          .c_str());
-  c->Clear();
-  f->Draw("");
-  HistSmoothed->Draw("same");
+  // g_sig->Draw();
+  // c->Print("gaussfit_sig.pdf");
+  // c->Clear();
+  // g_A->Draw();
+  // c->Print("gaussfit_A.pdf");
+  // c->Clear();
+  // g_Chi2->Draw();
+  // // g_Chi2->GetYaxis()->SetRangeUser(0, 2);
+  // c->Print("gaussfit_Chi2.pdf");
+  // c->Clear();
+  // f->Draw("");
+  // h_Qs->Draw("same");
 
-  Hist->Draw("same");
-  c->SetLogy();
-  c->Print(addAppendixToRelativeFilePath("_gaussrightfit.pdf", outputRootDir)
-               .c_str());
+  h_Q->Draw("same");
+  c->Print(addAppendixToRelativeFilePath("_gaussfit_r.pdf", rootDir).c_str());
 
   // rootDir->WriteObject(f, rootDir->GetName());
 }

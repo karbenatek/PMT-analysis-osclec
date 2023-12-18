@@ -1,4 +1,8 @@
 #include <RtypesCore.h>
+#include <TDirectory.h>
+#include <TFile.h>
+#include <TH1.h>
+#include <TParameter.h>
 #include <cmath>
 #include <filesystem>
 #include <iostream>
@@ -36,6 +40,18 @@ fs::path getDefaultCfgFile(fs::path inCfgName = "") {
     }
   }
   return fs::path("/");
+}
+
+/*
+Concatenates a filepath relative to TFile containing rootDir with prefix
+of rootDir name
+*/
+std::filesystem::path addAppendixToRelativeFilePath(std::string Appendix,
+                                                    TDirectory *rootDir) {
+  std::filesystem::path FilePath = rootDir->GetFile()->GetName();
+  FilePath = FilePath.parent_path().append(((std::string)rootDir->GetName()) +
+                                           Appendix);
+  return FilePath;
 }
 
 std::set<fs::path> getFilesInDir(fs::path DirectoryPath,
@@ -93,20 +109,43 @@ std::string s_to_10fs(std::string s, Int_t Shift = 14) {
 }
 
 std::string s_to_10fs(Double_t t) {
-  std::cout << "####" << std::endl;
-  std::cout << t << std::endl;
   t = t * 10e13;
-  std::cout << t << std::endl;
   t = round(t);
   std::string s = std::to_string(t);
-  std::cout << s << std::endl;
   s = s.substr(0, s.find_first_of('.'));
-  std::cout << s << std::endl;
-
-  Int_t exp;
-  Double_t mant = std::frexp(t, &exp);
-  // std::cout << mant << std::endl;
-  // std::cout << exp << std::endl;
 
   return s;
 }
+
+// template <typename T> T *LoadHist(TDirectory *rootDir, std::string HistName)
+// {
+//   T *h = rootDir->Get<T *>(HistName.c_str());
+//   if (rootDir->Get(HistName.c_str()) == nullptr) {
+//     std::cout << "Histogram \"" << HistName << "\" not found in TDirectory
+//     \""
+//               << rootDir->GetName() << "\"" << std::endl;
+//     exit(1);
+//   }
+//   return h;
+// }
+
+// template <typename T> T LoadPar(TDirectory *rootDir, std::string ParName) {
+//   T Parameter = rootDir->Get<TParameter<T>>(ParName.c_str())->GetVal();
+//   if (rootDir->Get(ParName.c_str()) == nullptr) {
+//     std::cout << "Parameter \"" << ParName << "\" not found in TDirectory\""
+//               << rootDir->GetName() << "\"" << std::endl;
+//     exit(1);
+//   }
+//   return Parameter;
+// }
+
+// TH1F *LoadTH1F(TDirectory *rootDir, std::string HistName) {
+//   TH1F *h = rootDir->Get<TH1F>(HistName.c_str());
+//   if (rootDir->Get(HistName.c_str()) == nullptr) {
+//     std::cout << "Histogram \"" << HistName << "\" not found in TDirectory
+//     \""
+//               << rootDir->GetName() << "\"" << std::endl;
+//     exit(1);
+//   }
+//   return h;
+// }

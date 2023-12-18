@@ -56,8 +56,7 @@ Float_t GetQ(std::vector<Double_t> *t, std::vector<Float_t> *x, Double_t max,
   Int_t i = iMax;
   Int_t i_T0 = GetT0(t, x, Threshold);
   T0 = t->at(i_T0);
-
-  // set CFD threshold
+  //  set CFD threshold
   Float_t cut_threshold =
       cut_ratio * (max - pedestal) + (1 - cut_ratio) * x->at(i_T0);
   Float_t X;
@@ -122,11 +121,13 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   Float_t TimeOverTrigger_ns; // aka pulse length
   Float_t Energy;
   Float_t Amplitude;
+  Int_t iSweep = 0;
 
   // init output TTree and create branches
   TTree *PMTAFTree = new TTree("pmtaf_tree", "Pulse events from OscLec data");
   PMTAFTree->Branch("time_10fs", &Time_10fs);
   PMTAFTree->Branch("time_over_trigger_ns", &TimeOverTrigger_ns);
+  PMTAFTree->Branch("i_sweep", &iSweep);
   PMTAFTree->Branch("amplitude_V", &Amplitude);
   PMTAFTree->Branch("energy", &Energy);
   PMTAFTree->Branch("date", Date, "date/C", 10);
@@ -159,19 +160,33 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   Double_t t0; // Pulse window start
   Double_t t1; // Pulse window end
   Double_t T0; // trigger time in s :]
+  Double_t CurrTime_s = 0;
+  Double_t PrevTime_s = 0;
   Double_t MeasTime_s = 0;
+  TParameter<Double_t> MeasTimeTParameter_s;
   Int_t throwed = 0;
   Double_t pedestal = 0;
   Double_t len_pedestal = 0;
 
   // 1st waveforms iteration to obtain pedestal
-  Int_t nentries = PulseTree->GetEntriesFast();
-  for (Long64_t jentry = 0; jentry < nentries; jentry++) { // events iterator
-    PulseTree->GetEntry(jentry);
+  Int_t nEntries = PulseTree->GetEntries();
+
+  for (Long64_t iEntry = 0; iEntry < nEntries; iEntry++) { // events iterator
+    PulseTree->GetEntry(iEntry);
 
     Amplitude = GetMax(x, iMax);
     // v_iMax.push_back(iMax);
     h_t_peak->Fill(t->at(iMax));
+    CurrTime_s = static_cast<Double_t>(Time_10fs) * 10e-14;
+    // clock overflow
+    // std::cout << CurrTime_s << std::endl;
+    if (iEntry > 0 && PrevTime_s > CurrTime_s)
+      MeasTime_s += PrevTime_s;
+    // last event
+    else if (iEntry == (nEntries - 1))
+      MeasTime_s += CurrTime_s;
+
+    PrevTime_s = CurrTime_s;
 
     // get sample for pedestal
     if (Amplitude <= Threshold)
@@ -188,29 +203,24 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
       len_pedestal += 10;
     }
   }
+  MeasTimeTParameter_s.SetVal(MeasTime_s);
 
   // get pedestal average
   pedestal /= len_pedestal;
-  ;
   // 2nd loop
-  for (Long64_t jentry = 0; jentry < nentries; jentry++) { // events iterator
-    PulseTree->GetEntry(jentry);
+  for (Long64_t iEntry = 0; iEntry < nEntries; iEntry++) { // events iterator
+    PulseTree->GetEntry(iEntry);
 
-    /*
-    time_10fs
-    time_over_trigger_ns
-    energy
-    date
-    time
-    */
-
+    iSweep = iEntry;
     // get maximum
     Amplitude = GetMax(x, iMax);
 
     // integrate charge Q
     Energy = GetQ(t, x, Amplitude, iMax, T0, t0, t1, CutFraction, Threshold,
                   pedestal);
+
     TimeOverTrigger_ns = static_cast<Float_t>((t1 - t0) * 10e9);
+
     if (UseTotalTime)
       Time_10fs += stoull(s_to_10fs(T0));
     else
@@ -220,7 +230,7 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
     pf_AQ->Fill(Energy, Amplitude);
 
     // add time to total meas time when timer resets
-    if (jentry > 0 && Time_10fs <= 0.000000001)
+    if (iEntry > 0 && Time_10fs <= 0.000000001)
       MeasTime_s += static_cast<Double_t>(Time_10fs) * 10e14;
 
     h_t0->Fill(t0);
@@ -232,15 +242,15 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
       wfm_Stack->Fill(t->at(i), static_cast<Double_t>(x->at(i)));
 
     // progress printout
-    if ((jentry) % 1000 == 0 && jentry != 0)
-      std::cout << jentry << "/" << nentries << std::endl;
+    if ((iEntry) % 1000 == 0 && iEntry != 0)
+      std::cout << iEntry << "/" << nEntries << std::endl;
   }
 
-  std::cout << nentries << "/" << nentries << std::endl;
+  std::cout << nEntries << "/" << nEntries << std::endl;
   std::cout << "Pulse analysis finished\n" << std::endl;
 
   // corelation slope
-  std::cout << "From " << nentries << " wfms, " << throwed << " was deleted"
+  std::cout << "From " << nEntries << " wfms, " << throwed << " was deleted"
             << std::endl;
 
   /*
@@ -255,7 +265,7 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
 //   MeasTime += PrevTime;
   */
   // Fill histograms & output tree from vectors
-  // for (Int_t i = 0; i < nentries; ++i) {
+  // for (Int_t i = 0; i < nEntries; ++i) {
   //   PulseTree->GetEntry(i);
   //   Q = v_Q[i];
   //   A = v_A[i];
@@ -285,12 +295,13 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   OutputRootDir->WriteObject(wfm_Stack, "wfm_Stack");
   OutputRootDir->WriteObject(pf_AQ, "pf_AQ");
   OutputRootDir->WriteObject(PMTAFTree, "pmtaf_tree");
+  OutputRootDir->WriteObject(&MeasTimeTParameter_s, "meas_time_s");
 }
 
-void getHistogram(TDirectory *InputRootDir, TDirectory *OutputRootDir,
-                  std::string BranchName, Int_t Bins, Double_t XLow = 0,
-                  Double_t XHigh = 0) {
-  TH1D *Histogram = new TH1D(BranchName.c_str(), "", Bins, XLow, XHigh);
+void makeTH1F(TDirectory *InputRootDir, TDirectory *OutputRootDir,
+              std::string BranchName, Int_t Bins, Double_t XLow = 0,
+              Double_t XHigh = 0) {
+  TH1F *Histogram = new TH1F(BranchName.c_str(), "", Bins, XLow, XHigh);
   Float_t X = 0;
 
   TTree *PMTAFTree = (TTree *)InputRootDir->Get("pmtaf_tree");
@@ -307,62 +318,158 @@ void getHistogram(TDirectory *InputRootDir, TDirectory *OutputRootDir,
 
 } // namespace pmta
 
-// Double_t GetMeasTime(TTree *PulseTree) {
-//   // Open input file
-//   uint64_t Time_10fs;
-//   PulseTree->SetBranchAddress("time_10fs", &Time_10fs);
+Double_t GetMeasTime(TTree *PulseTree) {
+  // Open input file
+  uint64_t Time_10fs;
+  PulseTree->SetBranchAddress("time_10fs", &Time_10fs);
 
-//   Double_t MeasTime = 0;
-//   Double_t PrevTime;
-//   for (Int_t i = 0; i < PulseTree->GetEntries(); ++i) {
-//     PulseTree->GetEntry(i);
-//     if (i > 0 && Time_10fs <= 0.000000001)
-//       MeasTime += PrevTime;
-//     PrevTime = Time_10fs;
-//   }
-//   MeasTime += PrevTime;
+  Double_t MeasTime = 0;
+  Double_t PrevTime;
+  for (Int_t i = 0; i < PulseTree->GetEntries(); ++i) {
+    PulseTree->GetEntry(i);
+    if (i > 0 && Time_10fs <= 0.000000001)
+      MeasTime += PrevTime;
+    PrevTime = Time_10fs;
+  }
+  MeasTime += PrevTime;
 
-//   return MeasTime;
+  return MeasTime;
+}
+
+// template <typename THist>
+// Double_t GetDarkPulses(THist *Hist, const Float_t Threshold) {
+//   Double_t DarkPulses = 0;
+//   for (Int_t i = 1; i <= Hist->GetNbinsX(); i++)
+//     if (Hist->GetBinLowEdge(i) >= Threshold)
+//       DarkPulses += (Double_t)Hist->GetBinContent(i);
+
+//   return DarkPulses;
 // }
-
-Double_t GetDarkPulses(TH1D *h_Q, const Float_t Threshold) {
+template <typename THist>
+Double_t GetDarkPulses(THist *Hist, const Float_t Threshold) {
   Double_t DarkPulses = 0;
-  for (Int_t i = 1; i <= h_Q->GetNbinsX(); i++)
-    if (h_Q->GetBinLowEdge(i) >= Threshold)
-      DarkPulses += (Double_t)h_Q->GetBinContent(i);
+  for (Int_t i = 1; i <= Hist->GetNbinsX(); i++)
+    if (Hist->GetBinLowEdge(i) >= Threshold)
+      DarkPulses += static_cast<Double_t>(Hist->GetBinContent(i));
 
   return DarkPulses;
 }
 
 namespace pmta {
-// Double_t GetDarkRate(TDirectory *drDir, TDirectory *spDir,
-//                      TDirectory *OutputRootDir, const Float_t pe_threshold) {
-//   // load darkrate spectra and raw pulse to obtain measurement time
-//   TH1D *h_Qdr = (TH1D *)drDir->Get("h_Q");
-//   TTree *tr = (TTree *)drDir->Get("pulses");
-//   // load spe spectra fit result
-//   TParameter<Double_t> *Q0 = (TParameter<Double_t> *)spDir->Get("Q0");
-//   TParameter<Double_t> *Q1 = (TParameter<Double_t> *)spDir->Get("Q1");
+void GetDarkRate(TDirectory *drDir, TDirectory *spDir,
+                 TDirectory *OutputRootDir, const std::string HistName,
+                 Float_t Threshold, const Bool_t UseSPEThreshold = false) {
+  // load darkrate spectra and raw pulse to obtain measurement time
+  TH1F *hDr = LoadHist<TH1F>(drDir, HistName);
 
-//   Double_t meas_time = GetMeasTime(tr);
+  Double_t MeasTime_s = LoadPar<Double_t>(drDir, "meas_time_s");
+  // (drDir->Get<TParameter<Double_t>>("meas_time_s"))->GetVal();
+  // convert threshold from spe units
+  if (UseSPEThreshold) {
+    // load spe spectra fit result
+    Double_t Q0 = LoadPar<Double_t>(spDir, "Q0");
+    Double_t Q1 = LoadPar<Double_t>(spDir, "Q1");
+    Threshold = Threshold * Q1 + Q0;
+  }
+  Double_t dark_pulses = GetDarkPulses(hDr, Threshold);
+  std::cout << dark_pulses / MeasTime_s << std::endl;
+  SavePar<Double_t>(OutputRootDir, dark_pulses / MeasTime_s, "dark_rate");
 
-//   Double_t Threshold = pe_threshold * Q1->GetVal() + Q0->GetVal();
-//   Double_t dark_pulses = GetDarkPulses(h_Qdr, Threshold);
-//   TParameter<Double_t> dark_rate;
-//   dark_rate.SetVal(dark_pulses / meas_time);
-//   if (OutputRootDir)
-//     OutputRootDir->WriteObject(&dark_rate, "darkrate");
-
-//   std::cout << dark_rate.GetVal() << std::endl;
-
-//   return dark_pulses / meas_time;
-// }
+  // return dark_pulses / MeasTime_s;
+}
 
 std::string formatAPratio(Int_t all, Int_t aps) {
   Double_t ratio = static_cast<Double_t>(aps) / all * 100.;
   std::string output_string = std::to_string(aps) + "/" + std::to_string(all) +
                               " = " + std::to_string(ratio) + " %";
   return output_string;
+}
+
+void doMultiPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
+                          const Float_t Threshold,
+                          const Double_t pulse_length_threshold) {
+
+  // variables to attach
+  Int_t iSeg;
+  char Date[11]; // in format yyyy-mm-dd
+  char Time[9];  // in format hh:mm:ss
+  uint64_t Time_10fs;
+  std::vector<Float_t> *x = 0;
+  std::vector<Double_t> *t = 0;
+
+  // Attach to input TTree
+  TTree *PulseTree = (TTree *)InputRootDir->Get("pmtaf_pulses");
+  PulseTree->SetBranchAddress("i_seg", &iSeg);
+  PulseTree->SetBranchAddress("date", Date);
+  PulseTree->SetBranchAddress("time", Time);
+  PulseTree->SetBranchAddress("time_10fs", &Time_10fs);
+  PulseTree->SetBranchAddress("x", &x);
+  PulseTree->SetBranchAddress("t", &t);
+  PulseTree->GetEntry(0);
+
+  // output variables
+  Float_t TimeOverTrigger_ns; // aka pulse length
+  Float_t Amplitude;
+  Int_t iSweep;
+
+  // attach to output ttree
+  TTree *PMTAFTree = new TTree("pmtaf_tree", "Pulse events from OscLec data");
+  PMTAFTree->Branch("time_10fs", &Time_10fs);
+  PMTAFTree->Branch("time_over_trigger_ns", &TimeOverTrigger_ns);
+  PMTAFTree->Branch("i_sweep", &iSweep);
+  PMTAFTree->Branch("amplitude_V", &Amplitude);
+  // PMTAFTree->Branch("energy", &Energy);
+  PMTAFTree->Branch("date", Date, "date/C", 10);
+  PMTAFTree->Branch("time", Time, "time/C", 8);
+
+  Bool_t state = 0, state_prev = 0;
+  Double_t rise_time, fall_time, pulse_length;
+  Long64_t nEntries = PulseTree->GetEntries();
+  for (Long64_t iEntry = 0; iEntry < nEntries; iEntry++) { // events iterator
+    PulseTree->GetEntry(iEntry);
+    iSweep = iEntry;
+    // waveform samples iterator
+    for (Int_t i = 0; i < x->size(); ++i) {
+      // determine state
+      if (x->at(i) >= Threshold) {
+        state = 1;
+      } else {
+        state = 0;
+      }
+
+      // rising edge
+      if (state && !state_prev) {
+        rise_time = t->at(i);
+        Amplitude = x->at(i);
+      }
+
+      // in pulse
+      if (state && state_prev) {
+        // update amplitude
+        if (x->at(i) > Amplitude)
+          Amplitude = x->at(i);
+      }
+
+      // falling edge
+      if (!state && state_prev) {
+        fall_time = t->at(i);
+        pulse_length = fall_time - rise_time;
+
+        // pulse length threshold check
+        if (pulse_length >= pulse_length_threshold) {
+          TimeOverTrigger_ns = pulse_length;
+          Time_10fs = stoull(s_to_10fs(rise_time));
+          PMTAFTree->Fill();
+        }
+      }
+      state_prev = state;
+    }
+
+    // h_AP->Fill(pulses);
+    // progress printout
+    if ((iEntry) % 1000 == 0 && iEntry != 0)
+      std::cout << iEntry << "/" << nEntries << std::endl;
+  }
 }
 
 void doAfterPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
@@ -396,10 +503,10 @@ void doAfterPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
       new TH1D("h_PulseTime", "Pulse time", 100, v_t->front(), v_t->back());
   TH1D *h_PulseLength = new TH1D("h_PulseLength", "Pulse length", 20, 0, 40e-9);
   // TH1D *h_V = new TH1D("h_V", "", 100, -5, 0);
-  long int nentries = tr->GetEntriesFast();
-  // nentries = 10000;
-  for (Long64_t jentry = 0; jentry < nentries; jentry++) { // events iterator
-    tr->GetEntry(jentry);
+  long int nEntries = tr->GetEntriesFast();
+  // nEntries = 10000;
+  for (Long64_t iEntry = 0; iEntry < nEntries; iEntry++) { // events iterator
+    tr->GetEntry(iEntry);
     pulses = -1;
     for (Int_t i = 0; i < v_x->size(); ++i) {
       // determine state
@@ -433,8 +540,8 @@ void doAfterPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
 
     h_AP->Fill(pulses);
     // progress printout
-    if ((jentry) % 1000 == 0 && jentry != 0)
-      std::cout << jentry << "/" << nentries << std::endl;
+    if ((iEntry) % 1000 == 0 && iEntry != 0)
+      std::cout << iEntry << "/" << nEntries << std::endl;
   }
 
   // printout
