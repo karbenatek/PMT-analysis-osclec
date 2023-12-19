@@ -95,7 +95,6 @@ Float_t GetMax(std::vector<Float_t> *x, Int_t &iMax) {
   return max;
 }
 
-namespace pmta {
 void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
                         const Float_t Threshold, const Float_t CutFraction,
                         const Bool_t UseTotalTime) {
@@ -125,6 +124,7 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
 
   // init output TTree and create branches
   TTree *PMTAFTree = new TTree("pmtaf_tree", "Pulse events from OscLec data");
+  PMTAFTree->SetAutoSave(0);
   PMTAFTree->Branch("time_10fs", &Time_10fs);
   PMTAFTree->Branch("time_over_trigger_ns", &TimeOverTrigger_ns);
   PMTAFTree->Branch("i_sweep", &iSweep);
@@ -177,7 +177,7 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
     Amplitude = GetMax(x, iMax);
     // v_iMax.push_back(iMax);
     h_t_peak->Fill(t->at(iMax));
-    CurrTime_s = static_cast<Double_t>(Time_10fs) * 10e-14;
+    CurrTime_s = static_cast<Double_t>(Time_10fs) * 1e-14;
     // clock overflow
     // std::cout << CurrTime_s << std::endl;
     if (iEntry > 0 && PrevTime_s > CurrTime_s)
@@ -219,7 +219,7 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
     Energy = GetQ(t, x, Amplitude, iMax, T0, t0, t1, CutFraction, Threshold,
                   pedestal);
 
-    TimeOverTrigger_ns = static_cast<Float_t>((t1 - t0) * 10e9);
+    TimeOverTrigger_ns = static_cast<Float_t>((t1 - t0) * 1e9);
 
     if (UseTotalTime)
       Time_10fs += stoull(s_to_10fs(T0));
@@ -231,7 +231,7 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
 
     // add time to total meas time when timer resets
     if (iEntry > 0 && Time_10fs <= 0.000000001)
-      MeasTime_s += static_cast<Double_t>(Time_10fs) * 10e14;
+      MeasTime_s += static_cast<Double_t>(Time_10fs) * 1e-14;
 
     h_t0->Fill(t0);
     h_t1->Fill(t1);
@@ -316,8 +316,6 @@ void makeTH1F(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   OutputRootDir->WriteObject(Histogram, BranchName.c_str());
 }
 
-} // namespace pmta
-
 Double_t GetMeasTime(TTree *PulseTree) {
   // Open input file
   uint64_t Time_10fs;
@@ -355,7 +353,6 @@ Double_t GetDarkPulses(THist *Hist, const Float_t Threshold) {
   return DarkPulses;
 }
 
-namespace pmta {
 void GetDarkRate(TDirectory *drDir, TDirectory *spDir,
                  TDirectory *OutputRootDir, const std::string HistName,
                  Float_t Threshold, const Bool_t UseSPEThreshold = false) {
@@ -387,7 +384,7 @@ std::string formatAPratio(Int_t all, Int_t aps) {
 
 void doMultiPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
                           const Float_t Threshold,
-                          const Double_t pulse_length_threshold) {
+                          const Double_t PulseLengthThreshold_ns) {
 
   // variables to attach
   Int_t iSeg;
@@ -405,7 +402,6 @@ void doMultiPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   PulseTree->SetBranchAddress("time_10fs", &Time_10fs);
   PulseTree->SetBranchAddress("x", &x);
   PulseTree->SetBranchAddress("t", &t);
-  PulseTree->GetEntry(0);
 
   // output variables
   Float_t TimeOverTrigger_ns; // aka pulse length
@@ -413,7 +409,8 @@ void doMultiPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   Int_t iSweep;
 
   // attach to output ttree
-  TTree *PMTAFTree = new TTree("pmtaf_tree", "Pulse events from OscLec data");
+  TTree *PMTAFTree = new TTree("pmtaf_tree", "Multipulse analysis output");
+  PMTAFTree->SetAutoSave(0);
   PMTAFTree->Branch("time_10fs", &Time_10fs);
   PMTAFTree->Branch("time_over_trigger_ns", &TimeOverTrigger_ns);
   PMTAFTree->Branch("i_sweep", &iSweep);
@@ -453,10 +450,10 @@ void doMultiPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
       // falling edge
       if (!state && state_prev) {
         fall_time = t->at(i);
-        pulse_length = fall_time - rise_time;
+        pulse_length = (fall_time - rise_time) * 1e9; // convert to ns units
 
         // pulse length threshold check
-        if (pulse_length >= pulse_length_threshold) {
+        if (pulse_length >= PulseLengthThreshold_ns) {
           TimeOverTrigger_ns = pulse_length;
           Time_10fs = stoull(s_to_10fs(rise_time));
           PMTAFTree->Fill();
@@ -465,80 +462,55 @@ void doMultiPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
       state_prev = state;
     }
 
-    // h_AP->Fill(pulses);
     // progress printout
     if ((iEntry) % 1000 == 0 && iEntry != 0)
       std::cout << iEntry << "/" << nEntries << std::endl;
   }
+  OutputRootDir->WriteObject(PMTAFTree, "pmtaf_tree");
 }
 
 void doAfterPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
-                          const Float_t Threshold,
-                          const Double_t pulse_length_threshold) {
+                          const Double_t TimeWindowEnd_us) {
 
   TCanvas *c = new TCanvas();
-  TTree *tr = InputRootDir->Get<TTree>("pulses");
+  // TTree *tr = InputRootDir->Get<TTree>("pulses");
 
-  Int_t i_Wfm;
-  std::vector<Double_t> *v_x = 0;
-  std::vector<Float_t> *v_t = 0;
-  Double_t t, t0;
-  tr->SetBranchAddress("x", &v_x);
-  tr->SetBranchAddress("t", &v_t);
-  tr->SetBranchAddress("TimeSinceSeg1", &t);
+  uint64_t Time_10fs;
+  Int_t iSweep, iSweep_prev;
 
-  tr->GetEntry(0);
+  TTree *PMTAFTree = InputRootDir->Get<TTree>("pmtaf_tree");
+  PMTAFTree->SetBranchAddress("time_10fs", &Time_10fs);
+  PMTAFTree->SetBranchAddress("i_sweep", &iSweep);
+  PMTAFTree->GetEntry(0);
+  iSweep_prev = -999;
+  Double_t Time_us;
 
-  // find trig time index
-  int i0 = 0;
-
-  while (v_t->at(i0) < 0)
-    i0++;
-
-  Int_t pulses, high_samples = 0, low_samples = 0;
-  Bool_t state = 0, state_prev = 0;
-  Double_t rise_time, fall_time, pulse_length;
   TH1I *h_AP = new TH1I("h_AP", "Afterpulses", 5, 0.5, 5.5);
   TH1D *h_PulseTime =
-      new TH1D("h_PulseTime", "Pulse time", 100, v_t->front(), v_t->back());
-  TH1D *h_PulseLength = new TH1D("h_PulseLength", "Pulse length", 20, 0, 40e-9);
-  // TH1D *h_V = new TH1D("h_V", "", 100, -5, 0);
-  long int nEntries = tr->GetEntriesFast();
-  // nEntries = 10000;
+      new TH1D("h_PulseTime", "Pulse time", 101, 0, TimeWindowEnd_us);
+
+  long int nEntries = PMTAFTree->GetEntries();
+  Int_t nPulses = 0;
   for (Long64_t iEntry = 0; iEntry < nEntries; iEntry++) { // events iterator
-    tr->GetEntry(iEntry);
-    pulses = -1;
-    for (Int_t i = 0; i < v_x->size(); ++i) {
-      // determine state
-      if (v_x->at(i) >= Threshold) {
-        state = 1;
-        high_samples++;
-      } else {
-        state = 0;
-        low_samples++;
-      }
+    PMTAFTree->GetEntry(iEntry);
+    Time_us = static_cast<Double_t>(Time_10fs) * 1e-8;
+    std::cout << Time_10fs << std::endl;
+    std::cout << static_cast<Double_t>(Time_10fs) << std::endl;
+    std::cout << static_cast<Double_t>(Time_10fs) * 1e-6 << std::endl;
+    std::cout << Time_us << std::endl;
+    exit(0);
+    // Pulse is after TimeWindowEnd
+    if (Time_us > TimeWindowEnd_us)
+      continue;
 
-      // rising edge
-      if (state && !state_prev) {
-        high_samples = 1;
-        rise_time = v_t->at(i);
-      }
-      // falling edge
-      else if (!state && state_prev) {
-        low_samples = 1;
-        fall_time = v_t->at(i);
-        pulse_length = fall_time - rise_time;
-        // pulse length validation
-        if (pulse_length >= pulse_length_threshold) {
-          h_PulseLength->Fill(fall_time - rise_time);
-          h_PulseTime->Fill(rise_time);
-          pulses++;
-        }
-      }
-      state_prev = state;
-    }
+    if (iSweep != iSweep_prev) {
+      h_AP->Fill(nPulses - 1);
+      nPulses = 1;
+    } else
+      nPulses++;
+    h_PulseTime->Fill(Time_us);
+    iSweep_prev = iSweep;
 
-    h_AP->Fill(pulses);
     // progress printout
     if ((iEntry) % 1000 == 0 && iEntry != 0)
       std::cout << iEntry << "/" << nEntries << std::endl;
@@ -561,24 +533,15 @@ void doAfterPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   }
 
   c->SetLogy();
-  c->Print("p_n.pdf");
-  c->Clear();
-  h_PulseLength->SetXTitle("Pulse length [s]");
-  h_PulseLength->SetYTitle("Count");
-  h_PulseLength->Draw();
-  c->Print("p_len.pdf");
+  c->Print(addAppendixToRelativeFilePath("_count.pdf", OutputRootDir).c_str());
   c->Clear();
 
-  h_PulseTime->SetXTitle("Pulse time from trigger [s]");
+  h_PulseTime->SetXTitle("Pulse time from trigger [us]");
   h_PulseTime->SetYTitle("Count");
   h_PulseTime->Draw();
-  c->Print("p_time.pdf");
+  c->Print(addAppendixToRelativeFilePath("_timing.pdf", OutputRootDir).c_str());
   c->Clear();
 
   OutputRootDir->WriteObject(h_AP, "h_AP");
-  OutputRootDir->WriteObject(h_PulseLength, "h_PulseLength");
   OutputRootDir->WriteObject(h_PulseTime, "h_PulseTime");
-
-  std::cout << "Done\n\n";
 }
-} // namespace pmta

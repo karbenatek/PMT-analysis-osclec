@@ -290,7 +290,7 @@ private:
 
   // ##### MODULES #####
   void runOscLecConverter() {
-    TDirectory *outputRootDir;
+    TDirectory *OutputRootDir;
     toml::table MeasurementNames = *cfg["osclec_converter"].as_table();
 
     for (const auto &element : MeasurementNames) {
@@ -303,24 +303,24 @@ private:
           toml::getString(ParameterTable, "rawdata_directory");
 
       // attach output TDir
-      outputRootDir = getDir(MeasurementName, ParameterTable, true);
+      OutputRootDir = getDir(MeasurementName, ParameterTable, true);
 
       // run parser
       osclec::parseFiles(
-          outputRootDir,
+          OutputRootDir,
           getFilesInDir(rawdata_directory, cfgFileName.parent_path()),
           threshold, invert_polarity);
 
       std::cout << "Data were seccessfully writen to\nTFile: \""
-                << outputRootDir->GetFile()->GetName() << "\" \nTDirectory: \""
+                << OutputRootDir->GetFile()->GetName() << "\" \nTDirectory: \""
                 << MeasurementName << "\"\n\n";
       // close TFile
-      outputRootDir->GetFile()->Close();
+      OutputRootDir->GetFile()->Close();
     }
   }
 
   void runINFNConverter() {
-    TDirectory *outputRootDir;
+    TDirectory *OutputRootDir;
     toml::table MeasurementNames = *cfg["infn_converter"].as_table();
 
     for (const auto &element : MeasurementNames) {
@@ -331,23 +331,23 @@ private:
       fs::path InputCsvFilePath = cfgFileName.parent_path();
       InputCsvFilePath.append(InputCsvFileName.c_str());
       // attach output TDir
-      outputRootDir = getDir(MeasurementName, ParTable, true);
+      OutputRootDir = getDir(MeasurementName, ParTable, true);
 
       // run parser
-      infn::parseFile(InputCsvFilePath, outputRootDir);
+      infn::parseFile(InputCsvFilePath, OutputRootDir);
 
       // std::cout << "Data were seccessfully writen to\nTFile: \""
-      //           << outputRootDir->GetFile()->GetName() << "\" \nTDirectory:
+      //           << OutputRootDir->GetFile()->GetName() << "\" \nTDirectory:
       //           \""
       //           << MeasurementName << "\"\n\n";
       // close TFile
-      outputRootDir->GetFile()->Close();
+      OutputRootDir->GetFile()->Close();
     }
   }
 
   void runPulseAnalysis() {
-    TDirectory *inputRootDir;
-    TDirectory *outputRootDir;
+    TDirectory *InputRootDir;
+    TDirectory *OutputRootDir;
     toml::table MeasurementNames = *cfg["pulse_analysis"].as_table();
 
     for (const auto &element : MeasurementNames) {
@@ -358,19 +358,19 @@ private:
       Double_t threshold = toml::getDouble(ParameterTable, "threshold");
 
       // attach i/o TDirectories
-      inputRootDir = getDir(MeasurementName, ParameterTable, false);
-      outputRootDir = getDir(MeasurementName, ParameterTable, true);
+      InputRootDir = getDir(MeasurementName, ParameterTable, false);
+      OutputRootDir = getDir(MeasurementName, ParameterTable, true);
 
-      pmta::doCFDPulseAnalysis(inputRootDir, outputRootDir, threshold,
-                               cut_fraction, false);
-      inputRootDir->GetFile()->Close();
-      outputRootDir->GetFile()->Close();
+      doCFDPulseAnalysis(InputRootDir, OutputRootDir, threshold, cut_fraction,
+                         false);
+      InputRootDir->GetFile()->Close();
+      OutputRootDir->GetFile()->Close();
     }
   }
 
   void getHistogram() {
-    TDirectory *inputRootDir;
-    TDirectory *outputRootDir;
+    TDirectory *InputRootDir;
+    TDirectory *OutputRootDir;
     toml::table MeasurementNames = *cfg["get_hist"].as_table();
 
     for (const auto &element : MeasurementNames) {
@@ -383,46 +383,42 @@ private:
       Double_t XHigh = toml::getDouble(ParameterTable, "x_high");
 
       // attach i/o TDirectories
-      inputRootDir = getDir(MeasurementName, ParameterTable, false);
-      outputRootDir = getDir(MeasurementName, ParameterTable, true);
+      InputRootDir = getDir(MeasurementName, ParameterTable, false);
+      OutputRootDir = getDir(MeasurementName, ParameterTable, true);
 
-      pmta::makeTH1F(inputRootDir, outputRootDir, BranchName, Bins, XLow,
-                     XHigh);
+      makeTH1F(InputRootDir, OutputRootDir, BranchName, Bins, XLow, XHigh);
 
-      inputRootDir->GetFile()->Close();
-      outputRootDir->GetFile()->Close();
+      InputRootDir->GetFile()->Close();
+      OutputRootDir->GetFile()->Close();
     }
   }
 
   void runSinglephotonFit() {
-    TDirectory *inputRootDir;
-    TDirectory *outputRootDir;
+    TDirectory *InputRootDir;
+    TDirectory *OutputRootDir;
     toml::table MeasurementNames = *cfg["spe_fit"].as_table();
 
     for (const auto &element : MeasurementNames) {
       // parse parameters
       std::string MeasurementName = element.first.data();
-      toml::table ParTable = *element.second.as_table();
-      std::string histName = "energy";
-      if (ParTable["hist_name"].is_string())
-        histName = *ParTable["hist_name"].value<std::string>();
-      Int_t nSmooth = 5;
-      if (ParTable["n_smooth"].is_integer())
-        nSmooth = *ParTable["n_smooth"].value<Int_t>();
+      toml::table ParameterTable = *element.second.as_table();
+      std::string HistName = toml::getString(ParameterTable, "hist_name");
+
+      Int_t nSmooth = toml::getInt(ParameterTable, "n_smooth");
 
       // attach i/o TDirectories
-      inputRootDir = getDir(MeasurementName, ParTable, false);
-      outputRootDir = getDir(MeasurementName, ParTable, true);
+      InputRootDir = getDir(MeasurementName, ParameterTable, false);
+      OutputRootDir = getDir(MeasurementName, ParameterTable, true);
 
-      FitSPE(inputRootDir, outputRootDir, histName, nSmooth);
-      inputRootDir->GetFile()->Close();
-      outputRootDir->GetFile()->Close();
+      FitSPE(InputRootDir, OutputRootDir, HistName, nSmooth);
+      InputRootDir->GetFile()->Close();
+      OutputRootDir->GetFile()->Close();
     }
   }
 
   void runGaussFit() {
-    TDirectory *inputRootDir;
-    TDirectory *outputRootDir;
+    TDirectory *InputRootDir;
+    TDirectory *OutputRootDir;
 
     toml::table MeasurementNames = *cfg["gauss_fit"].as_table();
 
@@ -431,19 +427,19 @@ private:
       std::string MeasurementName = element.first.data();
       toml::table ParameterTable = *element.second.as_table();
       // attach i/o TDirectories
-      inputRootDir = getDir(MeasurementName, ParameterTable, false);
-      outputRootDir = getDir(MeasurementName, ParameterTable, true);
+      InputRootDir = getDir(MeasurementName, ParameterTable, false);
+      OutputRootDir = getDir(MeasurementName, ParameterTable, true);
       std::string HistName = toml::getString(ParameterTable, "hist_name");
 
-      FitGauss(inputRootDir, outputRootDir, HistName);
-      inputRootDir->GetFile()->Close();
-      outputRootDir->GetFile()->Close();
+      FitGauss(InputRootDir, OutputRootDir, HistName);
+      InputRootDir->GetFile()->Close();
+      OutputRootDir->GetFile()->Close();
     }
   }
 
   void runGaussFromRightFit() {
-    TDirectory *inputRootDir;
-    TDirectory *outputRootDir;
+    TDirectory *InputRootDir;
+    TDirectory *OutputRootDir;
 
     toml::table MeasurementNames = *cfg["gauss_from_right_fit"].as_table();
 
@@ -453,14 +449,14 @@ private:
       toml::table ParameterTable = *element.second.as_table();
 
       // attach i/o TDirectories
-      inputRootDir = getDir(MeasurementName, ParameterTable, false);
-      outputRootDir = getDir(MeasurementName, ParameterTable, true);
+      InputRootDir = getDir(MeasurementName, ParameterTable, false);
+      OutputRootDir = getDir(MeasurementName, ParameterTable, true);
       Int_t nSmooth = toml::getInt(ParameterTable, "n_smooth");
       std::string HistName = toml::getString(ParameterTable, "hist_name");
 
-      FitRightGauss(inputRootDir, outputRootDir, HistName, nSmooth);
-      inputRootDir->GetFile()->Close();
-      outputRootDir->GetFile()->Close();
+      FitRightGauss(InputRootDir, OutputRootDir, HistName, nSmooth);
+      InputRootDir->GetFile()->Close();
+      OutputRootDir->GetFile()->Close();
     }
   }
 
@@ -468,7 +464,7 @@ private:
     toml::table MeasurementNames = *cfg["darkrate"].as_table();
     TDirectory *spRootDir;
     TDirectory *drRootDir;
-    TDirectory *outputRootDir;
+    TDirectory *OutputRootDir;
     for (const auto &element : MeasurementNames) {
       std::string MeasurementName = element.first.data();
       // parse parameters
@@ -480,36 +476,57 @@ private:
 
       drRootDir = getDir(MeasurementName, ParameterTable, false);
       spRootDir = getDir(ParameterTable, "sp_file_path", "sp_measurement_name");
-      outputRootDir = getDir(MeasurementName, ParameterTable, true);
+      OutputRootDir = getDir(MeasurementName, ParameterTable, true);
 
-      pmta::GetDarkRate(drRootDir, spRootDir, outputRootDir, BranchName,
-                        Threshold, UseSPEThreshold);
+      GetDarkRate(drRootDir, spRootDir, OutputRootDir, BranchName, Threshold,
+                  UseSPEThreshold);
       drRootDir->GetFile()->Close();
       spRootDir->GetFile()->Close();
-      outputRootDir->GetFile()->Close();
+      OutputRootDir->GetFile()->Close();
+    }
+  }
+
+  void runMultiPulseAnalysis() {
+    TDirectory *InputRootDir;
+    TDirectory *OutputRootDir;
+    toml::table MeasurementNames = *cfg["multipulse_analysis"].as_table();
+
+    for (const auto &element : MeasurementNames) {
+      std::string MeasurementName = element.first.data();
+      // parse parameters
+      toml::table ParameterTable = *element.second.as_table();
+      Float_t threshold = toml::getFloat(ParameterTable, "threshold");
+      Double_t pulse_length_threshold_ns =
+          toml::getDouble(ParameterTable, "pulse_length_threshold_ns");
+
+      InputRootDir = getDir(MeasurementName, ParameterTable, false);
+      OutputRootDir = getDir(MeasurementName, ParameterTable, true);
+
+      doMultiPulseAnalysis(InputRootDir, OutputRootDir, threshold,
+                           pulse_length_threshold_ns);
+      InputRootDir->GetFile()->Close();
+      OutputRootDir->GetFile()->Close();
     }
   }
 
   void runAfterPulseAnalysis() {
-    TDirectory *inputRootDir;
-    TDirectory *outputRootDir;
+    TDirectory *InputRootDir;
+    TDirectory *OutputRootDir;
     toml::table MeasurementNames = *cfg["afterpulse_analysis"].as_table();
 
     for (const auto &element : MeasurementNames) {
       std::string MeasurementName = element.first.data();
       // parse parameters
-      toml::table ParTable = *element.second.as_table();
-      Float_t threshold = *ParTable["threshold"].value<Float_t>();
-      Double_t pulse_length_threshold =
-          *ParTable["pulse_length_threshold"].value<Double_t>();
+      toml::table ParameterTable = *element.second.as_table();
+      Double_t TimeWindowEnd_us =
+          toml::getDouble(ParameterTable, "time_window_end_us");
 
-      inputRootDir = getDir(MeasurementName, ParTable, false);
-      outputRootDir = getDir(MeasurementName, ParTable, true);
+      InputRootDir = getDir(MeasurementName, ParameterTable, false);
+      OutputRootDir = getDir(MeasurementName, ParameterTable, true);
 
-      pmta::doAfterPulseAnalysis(inputRootDir, outputRootDir, threshold,
-                                 pulse_length_threshold);
-      inputRootDir->GetFile()->Close();
-      outputRootDir->GetFile()->Close();
+      doAfterPulseAnalysis(InputRootDir, OutputRootDir, TimeWindowEnd_us);
+      InputRootDir->GetFile()->Close();
+      OutputRootDir->GetFile()->Close();
     }
   }
 
@@ -519,6 +536,8 @@ private:
         {"osclec_converter", {0, [this]() { this->runOscLecConverter(); }}},
         {"infn_converter", {1, [this]() { this->runINFNConverter(); }}},
         {"pulse_analysis", {1, [this]() { this->runPulseAnalysis(); }}},
+        {"multipulse_analysis",
+         {1, [this]() { this->runMultiPulseAnalysis(); }}},
         {"get_hist", {2, [this]() { this->getHistogram(); }}},
         {"afterpulse_analysis",
          {2, [this]() { this->runAfterPulseAnalysis(); }}},

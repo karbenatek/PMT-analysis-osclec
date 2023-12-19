@@ -4,7 +4,6 @@
 #include <RtypesCore.h>
 #include <TDirectory.h>
 
-namespace pmta {
 void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
                         const Float_t Threshold, const Float_t CutFraction,
                         const Bool_t UseTotalTime);
@@ -17,9 +16,11 @@ Double_t GetDarkRate(TDirectory *drDir, TDirectory *spDir,
                      TDirectory *OutputRootDir, const std::string HistName,
                      Float_t Threshold, const Bool_t UseSPEThreshold = false);
 
-void doAfterPulseAnalysis(TDirectory *inputRootDir, TDirectory *outputRootDir,
-                          const Float_t threshold,
+void doMultiPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
+                          const Float_t Threshold,
                           const Double_t pulse_length_threshold);
-} // namespace pmta
+
+void doAfterPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
+                          const Double_t TimeWindowEnd_us);
 
 #endif // LIBANALIS_H

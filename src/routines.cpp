@@ -109,7 +109,7 @@ std::string s_to_10fs(std::string s, Int_t Shift = 14) {
 }
 
 std::string s_to_10fs(Double_t t) {
-  t = t * 10e13;
+  t = t * 1e14;
   t = round(t);
   std::string s = std::to_string(t);
   s = s.substr(0, s.find_first_of('.'));
