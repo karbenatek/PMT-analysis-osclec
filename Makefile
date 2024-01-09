@@ -32,7 +32,8 @@ debug: $(TARGET)
 test: $(TARGET)
 	# pmta mess/3peDR_analysis.root -c mess/cfg.toml
 	# pmta -c mess/cfgtest.toml -r
-	pmta -c mess/test_dr.toml
+	# pmta -c mess/test_dr.toml
+	pmta -c mess/tw.toml -r
 
 # make all lib objects defined under $(LIB_OBJS) 	
 build_libs: $(LIB_OBJS)

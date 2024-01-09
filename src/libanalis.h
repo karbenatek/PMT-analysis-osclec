@@ -8,6 +8,11 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
                         const Float_t Threshold, const Float_t CutFraction,
                         const Bool_t UseTotalTime);
 
+void doTWPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
+                       const Float_t Threshold, const Double_t t0,
+                       const Double_t t1, const Bool_t UseTotalTime,
+                       const Bool_t FitPedestal);
+
 void makeTH1F(TDirectory *InputRootDir, TDirectory *OutputRootDir,
               std::string BranchName, Int_t Bins, Double_t XLow = 0,
               Double_t XHigh = 0);

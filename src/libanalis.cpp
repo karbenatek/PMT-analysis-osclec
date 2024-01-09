@@ -4,6 +4,7 @@
 #include <TDirectory.h>
 #include <TF1.h>
 #include <TFile.h>
+#include <TGraph.h>
 #include <TH1.h>
 #include <TH2.h>
 #include <TMath.h>
@@ -12,6 +13,7 @@
 #include <TText.h>
 #include <TTree.h>
 
+#include <TVirtualPad.h>
 #include <cstdint>
 
 #include <iostream>
@@ -48,9 +50,10 @@ struct Q_duo {
 };
 
 // Integrate charge using with CFD pulse window
-Float_t GetQ(std::vector<Double_t> *t, std::vector<Float_t> *x, Double_t max,
-             Int_t iMax, Double_t &T0, Double_t &t0, Double_t &t1,
-             Float_t cut_ratio, Float_t Threshold, Float_t pedestal) {
+Float_t GetQByCFD(std::vector<Double_t> *t, std::vector<Float_t> *x,
+                  Double_t max, Int_t iMax, Double_t &T0, Double_t &t0,
+                  Double_t &t1, Float_t cut_ratio, Float_t Threshold,
+                  Float_t pedestal) {
   // set position to maximum
   Float_t Q;
   Int_t i = iMax;
@@ -80,6 +83,59 @@ Float_t GetQ(std::vector<Double_t> *t, std::vector<Float_t> *x, Double_t max,
   }
   t0 = t->at(++i);
 
+  return Q;
+}
+
+Float_t GetQByTW(std::vector<Double_t> *t, std::vector<Float_t> *x, Double_t t0,
+                 Double_t t1, Bool_t FitPedestal) {
+  Int_t i = 0, i0, i1;
+  TGraph gAroundWindow;
+  TF1 fPedestal("", "[0] + [1]*x");
+  Float_t Pedestal = 0;
+  Int_t nPedestal = 0;
+  Double_t time;
+  // goto t0
+  while (i < x->size() && t->at(i) < t0) {
+    if (FitPedestal)
+      gAroundWindow.AddPoint(t->at(i), x->at(i));
+    else {
+      Pedestal += x->at(i);
+      nPedestal++;
+    }
+    ++i;
+  }
+  i0 = i;
+
+  // goto t1 from back
+  i = x->size() - 1;
+  while (i0 < i && t->at(i) > t1) {
+    if (FitPedestal)
+      gAroundWindow.AddPoint(t->at(i), x->at(i));
+    else {
+      Pedestal += x->at(i);
+      nPedestal++;
+    }
+    --i;
+  }
+  i1 = i;
+
+  if (FitPedestal) {
+    // fit pedestal from points outside window
+    fPedestal.SetParameters(0, 0);
+    gAroundWindow.Fit(&fPedestal, "QN");
+  } else
+    Pedestal /= nPedestal;
+  fPedestal.SetParameter(1, -10000);
+  fPedestal.Draw("same");
+  Float_t Q = 0;
+  i = i0;
+  // integrate in time window
+  while (i <= i1) {
+    Q += x->at(i);
+    // subtract pedestal
+    Q -= FitPedestal ? fPedestal.Eval(t->at(i)) : Pedestal;
+    i++;
+  }
   return Q;
 }
 
@@ -216,8 +272,8 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
     Amplitude = GetMax(x, iMax);
 
     // integrate charge Q
-    Energy = GetQ(t, x, Amplitude, iMax, T0, t0, t1, CutFraction, Threshold,
-                  pedestal);
+    Energy = GetQByCFD(t, x, Amplitude, iMax, T0, t0, t1, CutFraction,
+                       Threshold, pedestal);
 
     TimeOverTrigger_ns = static_cast<Float_t>((t1 - t0) * 1e9);
 
@@ -253,33 +309,6 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   std::cout << "From " << nEntries << " wfms, " << throwed << " was deleted"
             << std::endl;
 
-  /*
-  //   Double_t MeasTime = 0;
-//   Double_t PrevTime;
-//   for (Int_t i = 0; i < PulseTree->GetEntries(); ++i) {
-//     PulseTree->GetEntry(i);
-//     if (i > 0 && Time_10fs <= 0.000000001)
-//       MeasTime += PrevTime;
-//     PrevTime = Time_10fs;
-//   }
-//   MeasTime += PrevTime;
-  */
-  // Fill histograms & output tree from vectors
-  // for (Int_t i = 0; i < nEntries; ++i) {
-  //   PulseTree->GetEntry(i);
-  //   Q = v_Q[i];
-  //   A = v_A[i];
-
-  //   /*time_10fs
-  //   time_over_trigger_ns
-  //   energy
-  //   date
-  //   time
-  //   */
-
-  //   Energy = Q;
-  // }
-
   // fit correlation histogram with line
   TF1 *f_A = new TF1("f_A", "[0] + [1]*x");
 
@@ -296,6 +325,128 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   OutputRootDir->WriteObject(pf_AQ, "pf_AQ");
   OutputRootDir->WriteObject(PMTAFTree, "pmtaf_tree");
   OutputRootDir->WriteObject(&MeasTimeTParameter_s, "meas_time_s");
+}
+
+void doTWPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
+                       const Float_t Threshold, const Double_t t0,
+                       const Double_t t1, const Bool_t UseTotalTime,
+                       const Bool_t FitPedestal) {
+
+  Int_t iSeg;
+  char Date[11]; // in format yyyy-mm-dd
+  char Time[9];  // in format hh:mm:ss
+  uint64_t Time_10fs;
+  std::vector<Float_t> *x = 0;
+  std::vector<Double_t> *t = 0;
+
+  // Attach to input TTree
+  TTree *PulseTree = (TTree *)InputRootDir->Get("pmtaf_pulses");
+  PulseTree->SetBranchAddress("i_seg", &iSeg);
+  PulseTree->SetBranchAddress("date", Date);
+  PulseTree->SetBranchAddress("time", Time);
+  PulseTree->SetBranchAddress("time_10fs", &Time_10fs);
+  PulseTree->SetBranchAddress("x", &x);
+  PulseTree->SetBranchAddress("t", &t);
+  PulseTree->GetEntry(0);
+
+  // parsed variables
+  Float_t Energy;
+  Float_t Amplitude;
+  Int_t iSweep = 0;
+
+  // init output TTree and create branches
+  TTree *PMTAFTree = new TTree("pmtaf_tree", "Pulse events from OscLec data");
+  PMTAFTree->SetAutoSave(0);
+  PMTAFTree->Branch("time_10fs", &Time_10fs);
+  PMTAFTree->Branch("i_sweep", &iSweep);
+  PMTAFTree->Branch("amplitude_V", &Amplitude);
+  PMTAFTree->Branch("energy", &Energy);
+  PMTAFTree->Branch("date", Date, "date/C", 10);
+  PMTAFTree->Branch("time", Time, "time/C", 8);
+
+  TH2D *wfm_Stack = new TH2D("wfm_stack", "Waveform stack", t->size(),
+                             t->front(), t->back(), 64, 0, 0);
+  TH1D *h_t_peak =
+      new TH1D("h_t_max", "Peak time", t->size(), t->front(), t->back());
+  TH2D *h2_AQ = new TH2D("h2_AQ", "Voltage vs Charge", 64, 0, 0, 64, 0, 0);
+  h2_AQ->GetXaxis()->SetTitle("Integrated charge [a.u.]");
+  h2_AQ->GetYaxis()->SetTitle("Voltage [V]");
+
+  TProfile *pf_AQ = new TProfile("pf_AQ", "Voltage vs Charge", 80, 0, 0, "");
+  pf_AQ->GetXaxis()->SetTitle("Integrated charge [a.u.]");
+  pf_AQ->GetYaxis()->SetTitle("Amplitude [V]");
+  pf_AQ->SetMarkerColor(3);
+  pf_AQ->SetLineColor(880);
+  pf_AQ->SetLineStyle(1);
+  pf_AQ->SetLineWidth(1);
+
+  Int_t n_Seg = x->size();
+  Double_t t_top = t->back();
+  Int_t iMax;
+  Double_t T0; // trigger time in s :]
+  Double_t CurrTime_s = 0;
+  Double_t PrevTime_s = 0;
+  Double_t MeasTime_s = 0;
+
+  Int_t nEntries = PulseTree->GetEntries();
+  for (Long64_t iEntry = 0; iEntry < nEntries; iEntry++) { // events iterator
+    PulseTree->GetEntry(iEntry);
+    Energy = GetQByTW(t, x, t0, t1, FitPedestal);
+    iSweep = iEntry;
+    T0 = t->at(GetT0(t, x, Threshold));
+    Amplitude = GetMax(x, iMax);
+
+    h_t_peak->Fill(t->at(iMax));
+    CurrTime_s = static_cast<Double_t>(Time_10fs) * 1e-14;
+
+    // clock overflow
+    if (iEntry > 0 && PrevTime_s > CurrTime_s)
+      MeasTime_s += PrevTime_s;
+    // last event
+    else if (iEntry == (nEntries - 1))
+      MeasTime_s += CurrTime_s;
+
+    // add time to total meas time when timer resets
+    if (iEntry > 0 && Time_10fs <= 0.000000001)
+      MeasTime_s += CurrTime_s;
+
+    if (UseTotalTime)
+      Time_10fs += stoull(s_to_10fs(T0));
+    else
+      Time_10fs = stoull(s_to_10fs(T0));
+
+    PrevTime_s = CurrTime_s;
+
+    // fitt tree
+    PMTAFTree->Fill();
+
+    // fill corelation histograms
+    h2_AQ->Fill(Energy, Amplitude);
+    pf_AQ->Fill(Energy, Amplitude);
+
+    // fill wfm stack
+    for (Int_t i = 0; i < x->size(); ++i) // wfms iterator
+      wfm_Stack->Fill(t->at(i), static_cast<Double_t>(x->at(i)));
+
+    // progress printout
+    if ((iEntry) % 1000 == 0 && iEntry != 0)
+      std::cout << iEntry << "/" << nEntries << std::endl;
+  }
+  std::cout << nEntries << "/" << nEntries << std::endl;
+  std::cout << "Pulse analysis finished\n" << std::endl;
+
+  // fit correlation histogram with line
+  TF1 *f_A = new TF1("f_A", "[0] + [1]*x");
+  // f_A->SetParameters(0., 0.);
+  pf_AQ->Fit(f_A, "Q", "", 0., pf_AQ->GetXaxis()->GetXmax());
+
+  // write output object to RootDir
+  OutputRootDir->WriteObject(h2_AQ, "h2_AQ");
+  OutputRootDir->WriteObject(h_t_peak, "h_t_peak");
+  OutputRootDir->WriteObject(wfm_Stack, "wfm_Stack");
+  OutputRootDir->WriteObject(pf_AQ, "pf_AQ");
+  OutputRootDir->WriteObject(PMTAFTree, "pmtaf_tree");
+  SavePar(OutputRootDir, MeasTime_s, "meas_time_s");
 }
 
 void makeTH1F(TDirectory *InputRootDir, TDirectory *OutputRootDir,

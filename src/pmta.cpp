@@ -86,6 +86,7 @@ ParsedArgs parseArgs(int argc, char *argv[]) {
     } else {
       std::cerr << "Cfg file " << parsedArgs.cfgFileName << " not found"
                 << std::endl;
+      exit(1);
     }
   }
 
@@ -345,7 +346,7 @@ private:
     }
   }
 
-  void runPulseAnalysis() {
+  void runPulseCFDAnalysis() {
     TDirectory *InputRootDir;
     TDirectory *OutputRootDir;
     toml::table MeasurementNames = *cfg["pulse_analysis"].as_table();
@@ -363,6 +364,31 @@ private:
 
       doCFDPulseAnalysis(InputRootDir, OutputRootDir, threshold, cut_fraction,
                          false);
+      InputRootDir->GetFile()->Close();
+      OutputRootDir->GetFile()->Close();
+    }
+  }
+
+  void runPulseTWAnalysis() {
+    TDirectory *InputRootDir;
+    TDirectory *OutputRootDir;
+    toml::table MeasurementNames = *cfg["pulse_tw_analysis"].as_table();
+
+    for (const auto &element : MeasurementNames) {
+      // parse parameters
+      std::string MeasurementName = element.first.data();
+      toml::table ParameterTable = *element.second.as_table();
+      Double_t t0_ns = toml::getDouble(ParameterTable, "t0_ns");
+      Double_t t1_ns = toml::getDouble(ParameterTable, "t1_ns");
+      Bool_t FitPedestal = toml::getBool(ParameterTable, "fit_pedestal");
+      Float_t Threshold = toml::getFloat(ParameterTable, "threshold");
+
+      // attach i/o TDirectories
+      InputRootDir = getDir(MeasurementName, ParameterTable, false);
+      OutputRootDir = getDir(MeasurementName, ParameterTable, true);
+
+      doTWPulseAnalysis(InputRootDir, OutputRootDir, Threshold, t0_ns * 1e-9,
+                        t1_ns * 1e-9, false, FitPedestal);
       InputRootDir->GetFile()->Close();
       OutputRootDir->GetFile()->Close();
     }
@@ -535,7 +561,8 @@ private:
     moduleMap = {
         {"osclec_converter", {0, [this]() { this->runOscLecConverter(); }}},
         {"infn_converter", {1, [this]() { this->runINFNConverter(); }}},
-        {"pulse_analysis", {1, [this]() { this->runPulseAnalysis(); }}},
+        {"pulse_cfd_analysis", {1, [this]() { this->runPulseCFDAnalysis(); }}},
+        {"pulse_tw_analysis", {1, [this]() { this->runPulseTWAnalysis(); }}},
         {"multipulse_analysis",
          {1, [this]() { this->runMultiPulseAnalysis(); }}},
         {"get_hist", {2, [this]() { this->getHistogram(); }}},
