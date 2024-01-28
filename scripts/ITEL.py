@@ -224,12 +224,12 @@ class ITEL():
         folder = "run/"
         timestr = strftime("%Y_%m_%d-%H_%M_%S")
         file_name = folder + timestr + '_data.csv'
-        # print("Name of the output file:   " + str(file_name) + "\n")
-        # outFile = open(file_name, 'w')
-        # writer = csv.writer(outFile)
-        # header = ["Channel", "Time Coarse (u=ns)", "T.o.t. coarse (u=ns)", "Time fine (u=ns)",  "T.o.t. fine (u=ns)", "Event time (ns)", "Event t.o.t. (ns)",  "Energy (u= ADC channels)", "Acquisition time", "Date"]
-        # writer.writerow(header)
-        # outFile.close()
+        print("Name of the output file:   " + str(file_name) + "\n")
+        outFile = open(file_name, 'w')
+        writer = csv.writer(outFile)
+        header = ["Channel", "Time Coarse (u=ns)", "T.o.t. coarse (u=ns)", "Time fine (u=ns)",  "T.o.t. fine (u=ns)", "Event time (ns)", "Event t.o.t. (ns)",  "Energy (u= ADC channels)", "Acquisition time", "Date"]
+        writer.writerow(header)
+        outFile.close()
 
         #### import t_fine calibrated values ####
         # get script path
@@ -461,7 +461,7 @@ class ITEL():
             self.startDAQ()
             sleep(meas_time)
             self.stopDAQ()
-            buffer = []
+            buffer = array([])
             n = 0
             nLeft = 0
             nRight = 0
@@ -480,7 +480,7 @@ class ITEL():
 
             print(n, "events")
             print(nLeft, "on the bellow,", nRight,"above limits")
-            buffer = array(buffer)
+            # buffer = array(buffer)
             # hist = histogram(buffer)
             self.histogram = plt.hist(buffer, bins=self.limits[1] - self.limits[0], range=self.limits, alpha=0.5, label = 'data', color='skyblue', ec='skyblue')[0]
             plt.xlabel("Energy [ADC channels]",fontsize=10)
@@ -499,6 +499,7 @@ class ITEL():
             print("Either n_Events or ACQ_time has to be defined.")
             return 1
         
+        # set working parameters
         self.hv.setThreshold(THR)
         self.hv.setVoltageSet(HV)
         sleep(0.5)
@@ -513,7 +514,12 @@ class ITEL():
             self.stopDAQ()
 
         while not itel.DAQqueue.empty():
-            buffer.append(int(itel.DAQqueue.get()[7]))
+            # TODO: get other elements from DAQqueue and write them to output event file
+            # this should be done inside DAQ cycle :) -> write only when N events are buffered -> make function to write all events to file
+            
+            # NOTE: this buffer contains energies, that are later on flushed into energy histogram
+            buffer.append(int(itel.DAQqueue.get()[7])) # do this in "flush" function... 
+            # BOTH OUPUTS CAN BE USEFULL... however the histogram is redundant :)
 
         self.histogram = plt.hist(buffer, bins=self.limits[1] - self.limits[0], range=self.limits, alpha=0.5, label = 'data', color='skyblue', ec='skyblue')[0]
         print(self.histogram[0])
