@@ -349,7 +349,7 @@ private:
   void runPulseCFDAnalysis() {
     TDirectory *InputRootDir;
     TDirectory *OutputRootDir;
-    toml::table MeasurementNames = *cfg["pulse_analysis"].as_table();
+    toml::table MeasurementNames = *cfg["pulse_cfd_analysis"].as_table();
 
     for (const auto &element : MeasurementNames) {
       // parse parameters
@@ -581,13 +581,15 @@ private:
 
   void callModule(std::string module_name) {
     checkModule(module_name);
+    std::cout << "##################################\nCallign module: \""
+              << module_name << "\"\n##################################\n";
     moduleMap[module_name].second();
   }
 
-  Bool_t checkModule(std::string module_name) {
+  void checkModule(std::string module_name) {
 
     if (moduleMap.find(module_name) != moduleMap.end())
-      return 1;
+      return;
     else {
       std::cout << "Module not found: " << module_name << std::endl;
       exit(1);

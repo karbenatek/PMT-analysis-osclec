@@ -1,0 +1,74 @@
+## DATA PARSING
+# [osclec_converter.singlephotons]
+# invert_polarity = true
+# threshold = 0
+# rawdata_directory = "data_sp"
+# output_file = "sp.root"
+
+# [osclec_converter.darkpulses]
+# invert_polarity = true
+# threshold = 0
+# rawdata_directory = "data_dp"
+# output_file = "dp.root"
+
+# [osclec_converter.afterpulses]
+# invert_polarity = true
+# threshold = 0
+# rawdata_directory = "data_ap"
+# output_file = "ap.root"
+
+
+### PULSE ANALYSIS
+# [pulse_cfd_analysis.singlephotons]
+# cut_fraction = 0.35
+# threshold = 0.004
+# input_file = "sp.root"
+# output_file = "pulses.root"
+
+# [pulse_cfd_analysis.darkpulses]
+# cut_fraction = 0.35
+# threshold = 0.004
+# input_file = "dp.root"
+# output_file = "pulses.root"
+
+
+# [multipulse_analysis.afterpulses]
+# threshold = 0.03
+# pulse_length_threshold_ns = 2e-9
+# input_file = "ap.root"
+# output_file = "pulses.root"
+
+### DO AFTERPULSE ANALYSIS
+[afterpulse_analysis.afterpulses]
+time_window_end_us = 12
+input_file = "pulses.root"
+output_file = "analysed.root"
+
+### GET SPE SPECTRA HISTOGRAM
+[get_hist.singlephotons]
+branch_name = "energy"
+bins = 80
+x_low = 0
+x_high = 0
+input_file = "pulses.root"
+output_file = "analysed.root"
+
+### FIT SPE SPECTRA
+[spe_fit.singlephotons]
+hist_name = "energy"
+n_smooth = 2
+input_file = "analysed.root"
+output_file = "analysed.root"
+
+### GET DARK RATE USING SPE THRESHOLD
+[darkrate.darkpulses]
+sp_measurement_name = "singlephotons"
+input_file = "pulses.root"
+sp_file_path = "analysed.root"
+output_file = "analysed.root"
+branch_name = "energy"
+use_spe_threshold = true
+threshold = 3
+
+
+

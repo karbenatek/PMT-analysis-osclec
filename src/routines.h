@@ -62,4 +62,17 @@ inline void SavePar(TDirectory *rootDir, T Par, std::string ParName) {
   return;
 }
 
+// TODO: add attaching of branches
+template <typename T>
+inline T LoadTree(TDirectory *rootDir, std::string TreeName,
+                  std::string BranchName[]) {
+  if (rootDir->Get(TreeName.c_str()) == nullptr) {
+    std::cout << "TTree \"" << TreeName << "\" not found in TDirectory \""
+              << rootDir->GetName() << "\" of TFile \""
+              << rootDir->GetFile()->GetName() << "\"" << std::endl;
+    exit(1);
+  }
+  rootDir->Get<TParameter<T>>(TreeName.c_str())->GetVal();
+}
+
 #endif // ROUTINES_H

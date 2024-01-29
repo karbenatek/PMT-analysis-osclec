@@ -16,6 +16,7 @@
 #include <TVirtualPad.h>
 #include <cstdint>
 
+#include <cstdlib>
 #include <iostream>
 #include <iterator>
 #include <ostream>
@@ -505,13 +506,23 @@ Double_t GetDarkPulses(THist *Hist, const Float_t Threshold) {
 }
 
 void GetDarkRate(TDirectory *drDir, TDirectory *spDir,
-                 TDirectory *OutputRootDir, const std::string HistName,
+                 TDirectory *OutputRootDir, const std::string BranchName,
                  Float_t Threshold, const Bool_t UseSPEThreshold = false) {
-  // load darkrate spectra and raw pulse to obtain measurement time
-  TH1F *hDr = LoadHist<TH1F>(drDir, HistName);
 
+  // attach TTree and required qunatity - energy/amplitude
+  Float_t Value;
+  TTree *PMTAFTree = drDir->Get<TTree>("pmtaf_tree");
+  if (BranchName == "energy" || BranchName == "amplitude_V") {
+    PMTAFTree->SetBranchAddress(BranchName.c_str(), &Value);
+  } else {
+    std::cerr << "Branch name \"" << BranchName
+              << "\" is not allowed for dark rate analysis" << std::endl;
+    exit(1);
+  }
+
+  // read dark rate measurement time
   Double_t MeasTime_s = LoadPar<Double_t>(drDir, "meas_time_s");
-  // (drDir->Get<TParameter<Double_t>>("meas_time_s"))->GetVal();
+
   // convert threshold from spe units
   if (UseSPEThreshold) {
     // load spe spectra fit result
@@ -519,11 +530,18 @@ void GetDarkRate(TDirectory *drDir, TDirectory *spDir,
     Double_t Q1 = LoadPar<Double_t>(spDir, "Q1");
     Threshold = Threshold * Q1 + Q0;
   }
-  Double_t dark_pulses = GetDarkPulses(hDr, Threshold);
-  std::cout << dark_pulses / MeasTime_s << std::endl;
-  SavePar<Double_t>(OutputRootDir, dark_pulses / MeasTime_s, "dark_rate");
+  // Double_t dark_pulses = GetDarkPulses(hDr, Threshold);
 
-  // return dark_pulses / MeasTime_s;
+  // go throught dark pulses events and count those over threshold
+  Double_t nDarkPulses = 0;
+  Int_t nEntries = PMTAFTree->GetEntries();
+  for (Int_t iEntry = 0; iEntry < nEntries; iEntry++) {
+    PMTAFTree->GetEntry(iEntry);
+    if (Value >= Threshold)
+      nDarkPulses++;
+  }
+  std::cout << "Dark rate: " << nDarkPulses / MeasTime_s << "dp/s" << std::endl;
+  SavePar<Double_t>(OutputRootDir, nDarkPulses / MeasTime_s, "dark_rate");
 }
 
 std::string formatAPratio(Int_t all, Int_t aps) {
@@ -645,11 +663,12 @@ void doAfterPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   for (Long64_t iEntry = 0; iEntry < nEntries; iEntry++) { // events iterator
     PMTAFTree->GetEntry(iEntry);
     Time_us = static_cast<Double_t>(Time_10fs) * 1e-8;
-    std::cout << Time_10fs << std::endl;
-    std::cout << static_cast<Double_t>(Time_10fs) << std::endl;
-    std::cout << static_cast<Double_t>(Time_10fs) * 1e-6 << std::endl;
-    std::cout << Time_us << std::endl;
-    exit(0);
+    // std::cout << Time_10fs << std::endl;
+    // std::cout << static_cast<Double_t>(Time_10fs) << std::endl;
+    // std::cout << static_cast<Double_t>(Time_10fs) * 1e-6 << std::endl;
+    // std::cout << Time_us << std::endl;
+
+    // exit(0);
     // Pulse is after TimeWindowEnd
     if (Time_us > TimeWindowEnd_us)
       continue;

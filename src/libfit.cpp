@@ -102,7 +102,6 @@ void findPeakValey(TH1F *h_Q0, TH1F *h_Qs, TH1F *h_dQ, Pts *pts,
 
   std::cout << "i_Q0 = " << pts->i_Q0 << std::endl;
   int i = pts->i_Q0 + 1;
-  std::cout << h_Qs->GetBinContent(1) << std::endl;
 
   Float_t bottom_threshold = 2; // to determine high edge of energy spectrum
 
@@ -125,13 +124,16 @@ void findPeakValey(TH1F *h_Q0, TH1F *h_Qs, TH1F *h_dQ, Pts *pts,
   // Peaks
   for (int p, j = 0; j < pts->vi_Qpeak->size(); ++j) {
     p = pts->vi_Qpeak->at(j);
-    pts->g_Qpeaks->AddPoint(h_Qs->GetBinCenter(p), h_Qs->GetBinContent(p));
+    std::cout << "iPeak: " << p << std::endl;
+    pts->g_Qpeaks->SetPoint(pts->g_Qpeaks->GetN(), h_Qs->GetBinCenter(p),
+                            h_Qs->GetBinContent(p));
   }
   // Valeys
   for (int v, j = 0; j < pts->vi_Qvaley->size(); ++j) {
-    std::cout << "iValey: " << pts->vi_Qvaley->at(j) << std::endl;
     v = pts->vi_Qvaley->at(j);
-    pts->g_Qvaleys->AddPoint(h_Qs->GetBinCenter(v), h_Qs->GetBinContent(v));
+    std::cout << "iValey: " << v << std::endl;
+    pts->g_Qvaleys->SetPoint(pts->g_Qvaleys->GetN(), h_Qs->GetBinCenter(v),
+                             h_Qs->GetBinContent(v));
   }
 
   // making derivative of spectra
@@ -160,8 +162,10 @@ void findPeakValey(TH1F *h_Q0, TH1F *h_Qs, TH1F *h_dQ, Pts *pts,
        j < std::min(pts->vi_Qvaley->size(), pts->vi_Qpeak->size()); ++j) {
     v = pts->vi_Qvaley->at(j);
     p = pts->vi_Qpeak->at(j);
-    pts->g_dQvaleys->AddPoint(h_dQ->GetBinCenter(v), h_dQ->GetBinContent(v));
-    pts->g_dQpeaks->AddPoint(h_dQ->GetBinCenter(p), h_dQ->GetBinContent(p));
+    pts->g_dQvaleys->SetPoint(pts->g_dQvaleys->GetN(), h_dQ->GetBinCenter(v),
+                              h_dQ->GetBinContent(v));
+    pts->g_dQpeaks->SetPoint(pts->g_dQpeaks->GetN(), h_dQ->GetBinCenter(p),
+                             h_dQ->GetBinContent(p));
   }
 
   //   int i_Qv, i_Qp;
@@ -728,6 +732,7 @@ void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
 
   findPeakValey(h_Q0, h_Qs, h_dQ, pts, prepPars, n_smooth, n_smooth);
 
+  // Draw peaks and valyes on smoothed histogram
   TCanvas *c_ei =
       new TCanvas("c", "Extremes and inflection points", 1000, 1400);
   c_ei->Divide(1, 2);

@@ -18,7 +18,7 @@ void makeTH1F(TDirectory *InputRootDir, TDirectory *OutputRootDir,
               Double_t XHigh = 0);
 
 Double_t GetDarkRate(TDirectory *drDir, TDirectory *spDir,
-                     TDirectory *OutputRootDir, const std::string HistName,
+                     TDirectory *OutputRootDir, const std::string BranchName,
                      Float_t Threshold, const Bool_t UseSPEThreshold = false);
 
 void doMultiPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
