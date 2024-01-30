@@ -20,3 +20,4 @@ todo.md
 *.pdf
 __pycache__
 conandeps.mk
+docs

@@ -11,7 +11,7 @@ import numpy as np
 from numpy import linspace, array, histogram, zeros
 from matplotlib import pyplot as plt
 from threading import Thread, Lock
-from queue import Queue
+from queue import Queue, Empty
 import math
 from os import mkdir
 
@@ -21,6 +21,7 @@ time_format = "-%d-%m-%Y-%H-%M-%S"
 def getTimeStamp():
     return  datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
 
+# Run Controll class
 class RC():
     def __init__(self, SerialPort):
         self.SerialPort = SerialPort
@@ -39,6 +40,7 @@ class RC():
 
     def Close(self):
         self.Port.close()
+
     def setCh0(self, run = False):
         if run:
             self.PowerDisable =  self.PowerDisable & 0xfe
@@ -53,7 +55,7 @@ class RC():
         f = self.Send_CMD(9,-1)
         return f
 
-    def Send_CMD (self,addr, dato = -1 ): 
+    def Send_CMD (self, addr, dato = -1 ): 
         if dato != -1 : # WR
             Str_to_send = (format(addr, 'X')+ " " + format(dato, 'X')+ "\n").encode()
         else :  #RD
@@ -85,9 +87,12 @@ class ITEL():
         self.daq = Serial(daq_SerialPort, 921600, timeout= 0.5)
         self.initDAQ()
         self.limits = (250, 400)
+        self.EventFile = None
+        self.HistFile = None
 
 
         print(self.hv.readMonRegisters())
+
     def rampDown(self):
         self.hv.reset()
         if self.hv.getStatus() == 0 and self.hv.getVoltage() > 200:
@@ -111,8 +116,8 @@ class ITEL():
         while self.hv.getStatus() == 2: # 2 is ramping up state
             sleep(2)
             print("HV = %4.3f V" %self.hv.getVoltage(), end="\r")
-        print("Waiting 20 seconds to stabilize...")            
-        for i in range(10):
+        print("Waiting 4 seconds to stabilize...")            
+        for i in range(2):
             sleep(2)
             print("HV = %4.3f V" %self.hv.getVoltage(), end="\r")
 
@@ -149,12 +154,16 @@ class ITEL():
         return DR
     
     def initDAQ(self):
-        self.DAQrunning = "idle"
+        self.DAQrunning = "idle" # this is a DAQ thread controll varialbe! can be "idle"/"run"/"kill"/"done" or int (this number refers to how many events remain to be acquired) 
+        self.EventsInQueue = 0
+
         self.DAQthread = Thread(name = "ACQ_MainBoard", target = self.ACQ_MainBoard, daemon = True)
         self.DAQlock = Lock()
         self.DAQlock.acquire()
-        self.DAQqueue = Queue()
+        self.EventWriterThread = Thread(name = "EventWriter", target = self.EventWriter, daemon = True)
+        self.DAQqueue = Queue(4096)
         self.DAQthread.start()
+        self.EventWriterThread.start()
  
     def startDAQ(self):
         if self.DAQlock.locked():
@@ -221,15 +230,15 @@ class ITEL():
         # print("\nAcquisition started at " + str(start_time) + "\n")
         # print("[Type 'quit' and press enter to stop the acquisition]\n")
 
-        folder = "run/"
-        timestr = strftime("%Y_%m_%d-%H_%M_%S")
-        file_name = folder + timestr + '_data.csv'
-        print("Name of the output file:   " + str(file_name) + "\n")
-        outFile = open(file_name, 'w')
-        writer = csv.writer(outFile)
-        header = ["Channel", "Time Coarse (u=ns)", "T.o.t. coarse (u=ns)", "Time fine (u=ns)",  "T.o.t. fine (u=ns)", "Event time (ns)", "Event t.o.t. (ns)",  "Energy (u= ADC channels)", "Acquisition time", "Date"]
-        writer.writerow(header)
-        outFile.close()
+        # folder = "run/"
+        # timestr = strftime("%Y_%m_%d-%H_%M_%S")
+        # file_name = folder + timestr + '_data.csv'
+        # print("Name of the output file:   " + str(file_name) + "\n")
+        # outFile = open(file_name, 'w')
+        # writer = csv.writer(outFile)
+        # header = ["Channel", "Time Coarse (u=ns)", "T.o.t. coarse (u=ns)", "Time fine (u=ns)",  "T.o.t. fine (u=ns)", "Event time (ns)", "Event t.o.t. (ns)",  "Energy (u= ADC channels)", "Acquisition time", "Date"]
+        # writer.writerow(header)
+        # outFile.close()
 
         #### import t_fine calibrated values ####
         # get script path
@@ -415,8 +424,14 @@ class ITEL():
                                 
                                 # buffer_matrix.append(buffer_array.copy())
                                 
+                                print("#######")
+                                print(buffer_array)
+                                print("")
+                                self.EventsInQueue += 1
                                 self.DAQqueue.put(buffer_array.copy())
                                 # print("DAQ status:", self.DAQrunning)
+
+                                # case when DAQ is set to obtain certain amount of events
                                 if isinstance(self.DAQrunning, int):
                                     if self.DAQrunning > 0:
                                         if self.DAQrunning % 250 == 0:
@@ -429,20 +444,9 @@ class ITEL():
                                 
                                 STATUS = 0
 
-                                # if len(buffer_matrix) == 100:
-
-                                #     outFile = open(file_name, 'a')
-                                #     writer = csv.writer(outFile)
-                                #     writer.writerows(buffer_matrix)
-                                #     outFile.close()
-
-                                #     buffer_matrix.clear()
-                                #     STATUS = 0
-
-                                # else:
-
-                                #     single_event.clear()
-                                #     STATUS = 0
+                                # if self.EventsInQueue >= 100:
+                                #     self.EventWriterThread.start()
+                                #     # self.flushQueue()
 
                             else:
                                 single_event.clear()
@@ -452,7 +456,7 @@ class ITEL():
                     data_s = data_s + chr(line)
 
     def scanTHRspectra(self, THR = [20, 40, 60, 80, 100, 120, 140], meas_time = 30):
-        itel.rampUp()
+        self.rampUp()
         directory = "data/scanTHRspectra_" + getTimeStamp()
         mkdir(directory)
         for thr in THR:
@@ -466,10 +470,10 @@ class ITEL():
             nLeft = 0
             nRight = 0
 
-            while not itel.DAQqueue.empty():
+            while not self.DAQqueue.empty():
                 n = n+1
 
-                energy = int(itel.DAQqueue.get()[7])
+                energy = int(self.DAQqueue.get()[7])
                 if energy < self.limits[0]:
                     nLeft += 1
                 elif energy > self.limits[1]:
@@ -492,8 +496,35 @@ class ITEL():
             plt.cla()
         # itel.rampDown()
 
+    # init event file
+    def openOutputFile(self, EventFileName = None):
+        self.EventFile = open(EventFileName, "w")
+        self.EventFileWriter = csv.writer(self.EventFile)
+        header = ["Channel", "Time Coarse (u=ns)", "T.o.t. coarse (u=ns)", "Time fine (u=ns)",  "T.o.t. fine (u=ns)", "Event time (ns)", "Event t.o.t. (ns)",  "Energy (u= ADC channels)", "Acquisition time", "Date"]
+        self.EventFileWriter.writerow(header)
 
-    def getSpectrum(self, n_Events = None, ACQ_time = None, OutFile = None , HV = 940, THR = 60, plot = True):
+    # dequeue all events and write them into event file
+    def EventWriter(self):
+        while self.DAQrunning != "kill":
+            try:
+                Event = self.DAQqueue.get(timeout = 10)
+                # self.EventFileWriter.writerow(self.DAQqueue.get(timeout = 10))
+            except Empty:
+                if self.DAQrunning not in ["idle", "stop", "done"]:
+                    print("Timeout 10 s passed in DAQ - stoping DAQ ...")
+                    self.stopDAQ()
+                    self.closeOuputFile()
+                    exit(1)
+                    
+            else:
+                self.EventFileWriter.writerow(Event)
+
+    def closeOuputFile(self):
+        self.EventFile.close()
+
+
+
+    def getSpectrum(self, n_Events = None, ACQ_time = None, OutputFileName = None , HV = 940, THR = 60, plot = True):
         # n_Events or ACQ_time has to be defined!
         if (n_Events is None and ACQ_time is None) or (n_Events is not None and ACQ_time is not None):
             print("Either n_Events or ACQ_time has to be defined.")
@@ -504,7 +535,10 @@ class ITEL():
         self.hv.setVoltageSet(HV)
         sleep(0.5)
         self.rampUp()
-        buffer = []
+
+        #init output event file
+        self.openOutputFile(OutputFileName + "_events.csv")
+
         if n_Events is not None:
             self.getNevents(n_Events)
 
@@ -512,34 +546,43 @@ class ITEL():
             self.startDAQ()
             sleep(ACQ_time)
             self.stopDAQ()
+        
+        # get remaining elements from DAQqueue
+        while not self.DAQqueue.empty():        
+            sleep(2)
 
-        while not itel.DAQqueue.empty():
-            # TODO: get other elements from DAQqueue and write them to output event file
-            # this should be done inside DAQ cycle :) -> write only when N events are buffered -> make function to write all events to file
+        self.closeOuputFile()
+
+        # while not self.DAQqueue.empty():
+        #     # TODO: get other elements from DAQqueue and write them to output event file
+        #     # this should be done inside DAQ cycle :) -> write only when N events are buffered -> make function to write all events to file
             
-            # NOTE: this buffer contains energies, that are later on flushed into energy histogram
-            buffer.append(int(itel.DAQqueue.get()[7])) # do this in "flush" function... 
-            # BOTH OUPUTS CAN BE USEFULL... however the histogram is redundant :)
+        #     # NOTE: this buffer contains energies, that are later on flushed into energy histogram
+        #     buffer.append(int(self.DAQqueue.get()[7])) # do this in "flush" function... 
+        #     # BOTH OUPUTS CAN BE USEFULL... however the histogram is redundant :)
 
-        self.histogram = plt.hist(buffer, bins=self.limits[1] - self.limits[0], range=self.limits, alpha=0.5, label = 'data', color='skyblue', ec='skyblue')[0]
-        print(self.histogram[0])
-        plt.xlabel("Energy [ADC channels]",fontsize=10)
-        plt.ylabel("Counts", fontsize=10)
-        if OutFile is not None:
-            plt.savefig("%s.png" %OutFile)
-            pd.DataFrame(np.array(self.histogram)).to_csv("%s.csv" %OutFile ,index_label="i",header=["counts"])
-        if plot:
-            plt.show()
+        # self.histogram = plt.hist(buffer, bins=self.limits[1] - self.limits[0], range=self.limits, alpha=0.5, label = 'data', color='skyblue', ec='skyblue')[0]
+        # print(self.histogram[0])
+        # plt.xlabel("Energy [ADC channels]",fontsize=10)
+        # plt.ylabel("Counts", fontsize=10)
+        # if OutFile is not None:
+        #     plt.savefig("%s.png" %OutFile)
+        #     pd.DataFrame(np.array(self.histogram)).to_csv("%s.csv" %OutFile ,index_label="i",header=["counts"])
+        # if plot:
+        #     plt.show()
 
 
 if __name__ == '__main__':
     itel = ITEL("/dev/itel_HV", 6, "/dev/itel_RC", "/dev/itel_DAQ")
     # itel.getSpectrum(ACQ_time= 120, OutFile= "data/spe", THR = 40)
-    # itel.getSpectrum(ACQ_time= 10, OutFile= "/tmp/bleh", HV = 880, THR = 30, plot = True)
+    itel.getSpectrum(ACQ_time = 5, OutputFileName= "/tmp/bleh", HV = 880, THR = 30, plot = True)
+    # itel.getSpectrum(n_Events = 15, OutputFileName= "/tmp/bleh", HV = 880, THR = 30, plot = True)
 
-    sleep(10)
-    for HV in [880, 940, 1020, 1100, 1180]:
-        itel.getSpectrum(ACQ_time= 240, OutFile= "data/laser_HV-%i" %HV, HV = HV, THR = 30, plot = False)
+    # sleep(1)
+
+
+    # for HV in [880, 940, 1020, 1100, 1180]:
+    #     itel.getSpectrum(ACQ_time= 240, OutFile= "data/laser_HV-%i" %HV, HV = HV, THR = 30, plot = False)
 
     # itel.getSpectrum(n_Events=10000, OutFile= "mess/itel-test")
     # itel.scanTHRspectra([80],10)
