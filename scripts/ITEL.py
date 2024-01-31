@@ -117,10 +117,11 @@ class ITEL():
             sleep(2)
             print("HV = %4.3f V" %self.hv.getVoltage(), end="\r")
         print("Waiting 4 seconds to stabilize...")            
-        for i in range(2):
-            sleep(2)
+        for i in range(1):
+            sleep(1)
             print("HV = %4.3f V" %self.hv.getVoltage(), end="\r")
-
+        print("\n")
+        
     def scanTHRrates(self, THR = [60, 80, 100, 120, 140], n = 10): #scans dark rates for thresholds in THR
         # THR = []
         # for i in range(4,10):
@@ -572,7 +573,7 @@ class ITEL():
 if __name__ == '__main__':
     itel = ITEL("/dev/itel_HV", 6, "/dev/itel_RC", "/dev/itel_DAQ")
     # itel.getSpectrum(ACQ_time= 120, OutFile= "data/spe", THR = 40)
-    itel.getSpectrum(ACQ_time = 5, OutputFileName= "/tmp/bleh", HV = 880, THR = 30, plot = True)
+    # itel.getSpectrum(ACQ_time = 5, OutputFileName= "/tmp/bleh", HV = 880, THR = 30, plot = True)
     # itel.getSpectrum(n_Events = 15, OutputFileName= "/tmp/bleh", HV = 880, THR = 30, plot = True)
 
     # sleep(1)
@@ -586,8 +587,9 @@ if __name__ == '__main__':
     # itel.hv.setVoltageSet()
     # itel.scanTHRrates([26,27,28,29,30], n = 5)
     # itel.hv.setVoltageSet(940)
-    # itel.rampUp()
-    # itel.rampDown()
+    itel.rampUp()
+    sleep(2)
+    itel.rampDown()
     # itel.scanTHRrates()
     # itel.scanTHRspectra()
     # itel.startDAQ()
