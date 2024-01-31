@@ -74,8 +74,8 @@ void parseFile(fs::path InputCsvFilePath, TDirectory *outputRootDir) {
   }
 
   // parsed variables
-  uint64_t Time_10fs;          // time unit is 10fs which allows ~ 2 days range
-  Double_t TimeOverTrigger_ns; // aka pulse length
+  uint64_t Time_10fs; // time unit is 10fs which allows ~ 2 days range
+  Double_t TimeOverThreshold_ns; // aka pulse length
   Float_t Energy;
   Int_t Channel;
   char Date[11]; // in format yyyy-mm-dd
@@ -86,7 +86,7 @@ void parseFile(fs::path InputCsvFilePath, TDirectory *outputRootDir) {
       "pmtaf_tree",
       ("Pulse events from " + std::string(InputCsvFilePath.c_str())).c_str());
   PMTAFTree->Branch("time_10fs", &Time_10fs);
-  PMTAFTree->Branch("time_over_trigger_ns", &TimeOverTrigger_ns);
+  PMTAFTree->Branch("time_over_threshold_ns", &TimeOverThreshold_ns);
   PMTAFTree->Branch("energy", &Energy);
   PMTAFTree->Branch("channel", &Channel);
   PMTAFTree->Branch("date", Date, "date/C", 10);
@@ -122,11 +122,11 @@ void parseFile(fs::path InputCsvFilePath, TDirectory *outputRootDir) {
     SubString = EventLine.substr(i0, i1 - i0 + 1);
     Energy = std::stod(SubString);
 
-    // get TimeOverTrigger
+    // get TimeOverThreshold
     i1 = i0 - 2;
     i0 = EventLine.find_last_of(',', i1) + 1;
     SubString = EventLine.substr(i0, i1 - i0 + 1);
-    TimeOverTrigger_ns = std::stod(SubString);
+    TimeOverThreshold_ns = std::stod(SubString);
 
     // get Time
     i1 = i0 - 2;

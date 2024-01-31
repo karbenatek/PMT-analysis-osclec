@@ -174,7 +174,7 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   PulseTree->GetEntry(0);
 
   // parsed variables
-  Float_t TimeOverTrigger_ns; // aka pulse length
+  Float_t TimeOverThreshold_ns; // aka pulse length
   Float_t Energy;
   Float_t Amplitude;
   Int_t iSweep = 0;
@@ -183,7 +183,7 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   TTree *PMTAFTree = new TTree("pmtaf_tree", "Pulse events from OscLec data");
   PMTAFTree->SetAutoSave(0);
   PMTAFTree->Branch("time_10fs", &Time_10fs);
-  PMTAFTree->Branch("time_over_trigger_ns", &TimeOverTrigger_ns);
+  PMTAFTree->Branch("time_over_threshold_ns", &TimeOverThreshold_ns);
   PMTAFTree->Branch("i_sweep", &iSweep);
   PMTAFTree->Branch("amplitude_V", &Amplitude);
   PMTAFTree->Branch("energy", &Energy);
@@ -276,7 +276,7 @@ void doCFDPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
     Energy = GetQByCFD(t, x, Amplitude, iMax, T0, t0, t1, CutFraction,
                        Threshold, pedestal);
 
-    TimeOverTrigger_ns = static_cast<Float_t>((t1 - t0) * 1e9);
+    TimeOverThreshold_ns = static_cast<Float_t>((t1 - t0) * 1e9);
 
     if (UseTotalTime)
       Time_10fs += stoull(s_to_10fs(T0));
@@ -573,7 +573,7 @@ void doMultiPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   PulseTree->SetBranchAddress("t", &t);
 
   // output variables
-  Float_t TimeOverTrigger_ns; // aka pulse length
+  Float_t TimeOverThreshold_ns; // aka pulse length
   Float_t Amplitude;
   Int_t iSweep;
 
@@ -581,7 +581,7 @@ void doMultiPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   TTree *PMTAFTree = new TTree("pmtaf_tree", "Multipulse analysis output");
   PMTAFTree->SetAutoSave(0);
   PMTAFTree->Branch("time_10fs", &Time_10fs);
-  PMTAFTree->Branch("time_over_trigger_ns", &TimeOverTrigger_ns);
+  PMTAFTree->Branch("time_over_threshold_ns", &TimeOverThreshold_ns);
   PMTAFTree->Branch("i_sweep", &iSweep);
   PMTAFTree->Branch("amplitude_V", &Amplitude);
   // PMTAFTree->Branch("energy", &Energy);
@@ -623,7 +623,7 @@ void doMultiPulseAnalysis(TDirectory *InputRootDir, TDirectory *OutputRootDir,
 
         // pulse length threshold check
         if (pulse_length >= PulseLengthThreshold_ns) {
-          TimeOverTrigger_ns = pulse_length;
+          TimeOverThreshold_ns = pulse_length;
           Time_10fs = stoull(s_to_10fs(rise_time));
           PMTAFTree->Fill();
         }
