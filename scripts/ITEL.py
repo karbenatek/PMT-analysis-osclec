@@ -424,9 +424,6 @@ class ITEL():
                                 
                                 # buffer_matrix.append(buffer_array.copy())
                                 
-                                print("#######")
-                                print(buffer_array)
-                                print("")
                                 self.EventsInQueue += 1
                                 self.DAQqueue.put(buffer_array.copy())
                                 # print("DAQ status:", self.DAQrunning)
