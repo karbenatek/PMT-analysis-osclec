@@ -895,7 +895,9 @@ void FitGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
               std::string HistName) {
   TCanvas *c = new TCanvas();
   inputRootDir->ls();
-  TH1F *Hist = LoadHist<TH1F>(inputRootDir, HistName);
+
+  TH1 *Hist = LoadHist<TH1>(inputRootDir, HistName);
+
   TF1 *f2 = new TF1("Gauss", "gaus");
   // f->SetParameter(0, h_Q->GetMaximum());
   // f->SetParameter(1, h_Q->GetMean());
@@ -903,7 +905,7 @@ void FitGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
   Hist->Fit(f2, "Q", "");
   Hist->Draw("same");
   c->SetLogy();
-  c->Print(addAppendixToRelativeFilePath("_" + HistName + "_gaussfit.png",
+  c->Print(addAppendixToRelativeFilePath("_" + HistName + "_gaussfit.pdf",
                                          outputRootDir)
                .c_str());
 
