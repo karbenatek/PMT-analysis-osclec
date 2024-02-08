@@ -906,6 +906,10 @@ void FitGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
   c->Print(addAppendixToRelativeFilePath("_" + HistName + "_gaussfit.png",
                                          outputRootDir)
                .c_str());
+
+  SavePar(outputRootDir, f2->GetParameter(0), "A");
+  SavePar(outputRootDir, f2->GetParameter(1), "mean");
+  SavePar(outputRootDir, f2->GetParameter(2), "sig");
 }
 
 void FitRightGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
