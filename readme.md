@@ -32,9 +32,8 @@ Antonín Lindner - antoninlindner@gmail.com
     - [conan 2.x](https://docs.conan.io/2/)
 1. Clone the repository: `git clone https://github.com/karbenatek/PMTAF.git`
 2. Navigate to the project directory: `cd PMTAF`
-3. Build framework executable: `make install`
-3.1 When running first time, you might be asked by `conan` to detect profile. 
-Run `conan profile detect`
+3. Build framework executable: `make install` 
+(When running first time, you might be asked by `conan` to detect profile. Run `conan profile detect` and repeat `make install`. If running on Ubuntu 22.x based linux distribution please pay attention on [following issue](https://github.com/conan-io/conan/issues/4322))
 
 ## Usage
 A binary executable is compiled as `bin/pmta` which can be added to system path by running `. setup.sh`.

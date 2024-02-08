@@ -78,7 +78,7 @@ class RC():
         return line
 
 class ITEL():
-    def __init__(self, hv_SerialPort, hv_Address, rc_SerialPort, daq_SerialPort):
+    def __init__(self, hv_SerialPort, hv_Address, rc_SerialPort, daq_SerialPort, debug = False):
         print("Initializing connection...")
         self.hv = HVModbus()
         self.hv.open(hv_SerialPort, hv_Address)
@@ -89,6 +89,7 @@ class ITEL():
         self.limits = (250, 400)
         self.EventFile = None
         self.HistFile = None
+        self.debug = debug
 
 
         print(self.hv.readMonRegisters())
@@ -155,31 +156,33 @@ class ITEL():
         return DR
     
     def initDAQ(self):
-        self.DAQrunning = "idle" # this is a DAQ thread controll varialbe! can be "idle"/"run"/"kill"/"done" or int (this number refers to how many events remain to be acquired) 
+        self.DAQrunning = "init" # this is a DAQ thread controll varialbe! can be "idle"/"run"/"kill"/"done" or int (this number refers to how many events remain to be acquired) 
         self.EventsInQueue = 0
 
         self.DAQthread = Thread(name = "ACQ_MainBoard", target = self.ACQ_MainBoard, daemon = True)
+        self.EventWriterThread = Thread(name = "EventWriter", target = self.EventWriter, daemon = True)
         self.DAQlock = Lock()
         self.DAQlock.acquire()
-        self.EventWriterThread = Thread(name = "EventWriter", target = self.EventWriter, daemon = True)
         self.DAQqueue = Queue(4096)
         self.DAQthread.start()
         self.EventWriterThread.start()
+        
  
     def startDAQ(self):
-        if self.DAQlock.locked():
-            self.DAQrunning = "run"
-            self.rc.setCh0(True)
+        if self.DAQrunning == "idle":
             self.DAQlock.release()
-        else:
+        elif self.DAQrunning == "run":
             print("DAQ thread is aleready running")
 
     def stopDAQ(self):
-        if not self.DAQlock.locked():
-            self.DAQrunning = "idle"
+        if self.DAQrunning != "idle":
+            self.rc.setCh0(False)
+            self.DAQrunning = "stop"
         else:
-            print("DAQ thread is already stopped.")
+            print("DAQ thread is aleready paused")
 
+        
+        
     def killDAQ(self):
         self.DAQrunning = "kill"
         self.rc.setCh0(False)
@@ -188,14 +191,12 @@ class ITEL():
         self.DAQthread.join()
 
     def getNevents(self, N):
-        if self.DAQlock.locked():
+        if self.DAQrunning == "idle":
             print("Starting acqusition of", N, "events.")
             self.DAQrunning = int(N)
             self.rc.setCh0(True)
             self.DAQlock.release()
 
-            while self.DAQrunning != "done":
-                sleep(0.2)
         else:
             print("Other process is running on DAQ thread.")
     
@@ -272,22 +273,33 @@ class ITEL():
 
         while self.DAQrunning != "kill":
             
+            
+            if self.DAQrunning != "run":
+                if self.debug:
+                    print(self.DAQrunning)
+            # check if ammount of requested events is acquired
             if isinstance(self.DAQrunning, int):
                 if self.DAQrunning == 0:
-                    self.DAQrunning = "done"
-                    
-                    # if self.DAQlock.locked():
-                    #     self.DAQlock.release()
-                        # sleep(0.2)
-
-            if isinstance(self.DAQrunning, str):
-                if self.DAQrunning in ["idle", "done"]:
                     self.rc.setCh0(False)
-                    # print("DAQ paused")
+                    self.DAQrunning = "stop"
+                    
+            
+            if isinstance(self.DAQrunning, str):
+                if self.DAQrunning in ["stop", "init", "idle"]:
+                    self.rc.setCh0(False)
+                    if self.DAQrunning == "stop":
+                        print("DAQ paused")
+                    
+                    self.DAQrunning = "idle"
+                    
                     self.DAQlock.acquire()
-                    # print("DAQ resumed")
-
-
+                    if self.DAQrunning == "kill":
+                        break
+                    print("DAQ resumed")
+                    if not isinstance(self.DAQrunning, int):
+                        self.DAQrunning = "run"
+                    self.rc.setCh0(True)
+                    
             for line in self.daq.read():
                 
                 if line == 13: # might be symbol data packet start..?
@@ -325,7 +337,7 @@ class ITEL():
                             single_event.clear()
                             STATUS = 0
 
-                    elif ((STATUS == 2) and (ROW_NUMBER == 2)):  # TCoarse
+                    elif ((STATUS == 2) and (ROW_NUMBER == 2)):  #idle TCoarse
                         
                         CHECK_MSB = data >> 15
 
@@ -368,7 +380,7 @@ class ITEL():
                         CHECK_MSB = data >> 15
 
                         if CHECK_MSB == 0:
-
+                            
                             single_event.append(data)
 
                         else:
@@ -418,13 +430,17 @@ class ITEL():
                                     buffer_array.append(int((single_event[4] >> 5) & 0x003f)*5-int(single_event[4] & 0x001f)+int((single_event[3] << 3) & 0x001f)+int(single_event[4] >> 11))  # event time width = tot_coarse - tot_fine + t_fine
 
                                 buffer_array.append(single_event[5])  # energy
+                                
                                 t = localtime()
                                 buffer_array.append(strftime("%H:%M:%S", t))
                                 buffer_array.append(strftime("%Y-%m-%d"))
                                 
                                 
                                 # buffer_matrix.append(buffer_array.copy())
-                                
+                                if self.debug:
+                                    print(buffer_array)
+                                    print("E = %i" %single_event[5])
+
                                 self.EventsInQueue += 1
                                 self.DAQqueue.put(buffer_array.copy())
                                 # print("DAQ status:", self.DAQrunning)
@@ -505,11 +521,13 @@ class ITEL():
     def EventWriter(self):
         while self.DAQrunning != "kill":
             try:
-                Event = self.DAQqueue.get(timeout = 10)
+                Event = self.DAQqueue.get(timeout = 20)
                 # self.EventFileWriter.writerow(self.DAQqueue.get(timeout = 10))
             except Empty:
-                if self.DAQrunning not in ["idle", "stop", "done"]:
-                    print("Timeout 10 s passed in DAQ - stoping DAQ ...")
+                if self.DAQrunning not in ["idle", "stop", "done", "init"]:
+                    print("WARNING! Timeout 20 s passed - stoping DAQ ...")
+                    if self.debug:
+                        print(self.DAQrunning)
                     self.stopDAQ()
                     self.closeOuputFile()
                     exit(1)
@@ -518,6 +536,7 @@ class ITEL():
                 self.EventFileWriter.writerow(Event)
 
     def closeOuputFile(self):
+        print("Output file closed")
         self.EventFile.close()
 
 
@@ -531,12 +550,12 @@ class ITEL():
         # set working parameters
         self.hv.setThreshold(THR)
         self.hv.setVoltageSet(HV)
-        sleep(0.5)
         self.rampUp()
+        
 
         #init output event file
-        self.openOutputFile(OutputFileName + "_events.csv")
-
+        self.openOutputFile(OutputFileName)
+        
         if n_Events is not None:
             self.getNevents(n_Events)
 
@@ -544,12 +563,16 @@ class ITEL():
             self.startDAQ()
             sleep(ACQ_time)
             self.stopDAQ()
-        
+        sleep(0.2)
         # get remaining elements from DAQqueue
-        while not self.DAQqueue.empty():        
-            sleep(2)
+        while not self.DAQqueue.empty():   
+            print("Waiting till the DAQ queue is empty")
+            sleep(0.2)
+        print("")
+        print("End of DAQ")
 
         self.closeOuputFile()
+        return 0
 
         # while not self.DAQqueue.empty():
         #     # TODO: get other elements from DAQqueue and write them to output event file
@@ -568,14 +591,33 @@ class ITEL():
         #     pd.DataFrame(np.array(self.histogram)).to_csv("%s.csv" %OutFile ,index_label="i",header=["counts"])
         # if plot:
         #     plt.show()
-
-
-if __name__ == '__main__':
-    itel = ITEL("/dev/itel_HV", 6, "/dev/itel_RC", "/dev/itel_DAQ")
+        
+def doLTStest():
+    
+    for i in range(4*24):  # 2 days testing :)
+        itel = ITEL("/dev/itel_HV", 6, "/dev/itel_RC", "/dev/itel_DAQ", True)
     # itel.getSpectrum(ACQ_time= 120, OutFile= "data/spe", THR = 40)
     # itel.getSpectrum(ACQ_time = 5, OutputFileName= "/tmp/bleh", HV = 880, THR = 30, plot = True)
-    # itel.getSpectrum(n_Events = 15, OutputFileName= "/tmp/bleh", HV = 880, THR = 30, plot = True)
+    #itel.getSpectrum(n_Events = 5, OutputFileName= "mess/test", HV = 880, THR = 30, plot = True)
+        itel.getSpectrum(ACQ_time = 10, OutputFileName= "mess/test_DAQtime%i.csv" %i, HV = 880+10*i, THR = 30, plot = True)      
+        itel.getSpectrum(n_Events = 10, OutputFileName= "mess/test_nEvents%i.csv" %i, HV = 880+10*i, THR = 30, plot = True)      
+        itel.killDAQ()
+        itel.rampDown()
+        if i < 23:
+            sleep(60*30) # sleep for 1/2 hour
+        
 
+if __name__ == '__main__':
+    doLTStest()
+    #itel = ITEL("/dev/itel_HV", 6, "/dev/itel_RC", "/dev/itel_DAQ", True)
+    # itel.getSpectrum(ACQ_time= 120, OutFile= "data/spe", THR = 40)
+    # itel.getSpectrum(ACQ_time = 5, OutputFileName= "mess/1.csv", HV = 880, THR = 30, plot = True)
+    # sleep(1)
+    # itel.getSpectrum(n_Events = 5, OutputFileName= "mess/2.csv", HV = 880, THR = 30, plot = True)
+    # itel.rampDown()
+    #for i in range(5):  
+     #   itel.getSpectrum(ACQ_time = 5, OutputFileName= "mess/test%i" %i, HV = 880, THR = 30, plot = True)
+    
     # sleep(1)
 
 
@@ -587,9 +629,9 @@ if __name__ == '__main__':
     # itel.hv.setVoltageSet()
     # itel.scanTHRrates([26,27,28,29,30], n = 5)
     # itel.hv.setVoltageSet(940)
-    itel.rampUp()
-    sleep(2)
-    itel.rampDown()
+    # itel.rampUp()
+    # sleep(2)
+    # itel.rampDown()
     # itel.scanTHRrates()
     # itel.scanTHRspectra()
     # itel.startDAQ()
