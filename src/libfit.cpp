@@ -599,7 +599,7 @@ void SetParLimFixs(TF1 *f, TH1F *h_Q, PrepPars Pars,
   l[i++] = {static_cast<float>(-0.02 * Qstart),
             static_cast<float>(0.02 * Qstart)};                   // Q0
   l[i++] = {0, static_cast<float>(Qstart * 0.5)};                 // sig0
-  l[i++] = {static_cast<float>(0.8 * (Qp - Q0)), 2 * (Qp - Q0)};  // Q1
+  l[i++] = {static_cast<float>(0.8 * (Qp - Q0)), 4 * (Qp - Q0)};  // Q1
   l[i++] = {static_cast<float>((Qp - Qv) * 0.1), (Qp - Qv) * 10}; // sig1
   l[i++] = {0.005, 0.99};                                         // w
   l[i++] = {0, 1000 / (Qv - Q0)};                                 // aplha

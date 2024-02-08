@@ -463,6 +463,8 @@ void makeTH1F(TDirectory *InputRootDir, TDirectory *OutputRootDir,
   for (Int_t iEntry = 0; iEntry < nEntries; iEntry++) {
     PMTAFTree->GetEntry(iEntry);
     Histogram->Fill(X);
+    if ((iEntry) % 10000 == 0 && iEntry != 0)
+      std::cout << iEntry << "/" << nEntries << std::endl;
   }
 
   OutputRootDir->WriteObject(Histogram, BranchName.c_str());
