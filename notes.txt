@@ -1,0 +1,2 @@
+ended up at PV_ratio.. test it :)
+next: test time ref trigger on FF
