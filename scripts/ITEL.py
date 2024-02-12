@@ -280,6 +280,7 @@ class ITEL():
             # check if ammount of requested events is acquired
             if isinstance(self.DAQrunning, int):
                 if self.DAQrunning == 0:
+                    self.stopDAQ()
                     self.rc.setCh0(False)
                     self.DAQrunning = "stop"
                     
@@ -533,6 +534,7 @@ class ITEL():
                     exit(1)
                     
             else:
+                self.EventsInQueue -= 1
                 self.EventFileWriter.writerow(Event)
 
     def closeOuputFile(self):
@@ -548,11 +550,12 @@ class ITEL():
             return 1
         
         # set working parameters
-        self.hv.setThreshold(THR)
-        self.hv.setVoltageSet(HV)
-        self.rampUp()
+        if THR != None:
+            self.hv.setThreshold(THR)
+        if HV != None:
+            self.hv.setVoltageSet(HV)
+            self.rampUp()
         
-
         #init output event file
         self.openOutputFile(OutputFileName)
         
@@ -565,9 +568,10 @@ class ITEL():
             self.stopDAQ()
         sleep(0.2)
         # get remaining elements from DAQqueue
-        while not self.DAQqueue.empty():   
+        if not self.DAQqueue.empty():   
             print("Waiting till the DAQ queue is empty")
-            sleep(0.2)
+            print("\t%i events remaining" %self.EventsInQueue)
+            sleep(2)
         print("")
         print("End of DAQ")
 
@@ -608,15 +612,19 @@ def doLTStest():
         
 
 if __name__ == '__main__':
-    doLTStest()
-    #itel = ITEL("/dev/itel_HV", 6, "/dev/itel_RC", "/dev/itel_DAQ", True)
+    # doLTStest()
+    itel = ITEL("/dev/itel_HV", 6, "/dev/itel_RC", "/dev/itel_DAQ", True)
     # itel.getSpectrum(ACQ_time= 120, OutFile= "data/spe", THR = 40)
     # itel.getSpectrum(ACQ_time = 5, OutputFileName= "mess/1.csv", HV = 880, THR = 30, plot = True)
     # sleep(1)
-    # itel.getSpectrum(n_Events = 5, OutputFileName= "mess/2.csv", HV = 880, THR = 30, plot = True)
+    for i in range(3):
+        input("...")
+        itel.getSpectrum(n_Events= 100, OutputFileName= "mess/laser_trig_test_%i.csv" %i, HV = None, THR = 30, plot = True)
+
+    
     # itel.rampDown()
-    #for i in range(5):  
-     #   itel.getSpectrum(ACQ_time = 5, OutputFileName= "mess/test%i" %i, HV = 880, THR = 30, plot = True)
+    # for i in range(5):  
+    # itel.getSpectrum(ACQ_time = 5, OutputFileName= "mess/test%i" %i, HV = 880, THR = 30, plot = True)
     
     # sleep(1)
 
