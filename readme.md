@@ -79,7 +79,7 @@ output_file = "fileY.root"
 
 Notes:
 * Order of operations in codfig file does not matter. Their actual order is defined by module priorities harcoded in framework.
-* `input_file/output_file` are commonly used parameters. Refering of both to same file is OK.
+* `input_file/output_file` are commonly used parameters for PMTAF native `.root` files. Refering of both to same file is OK.
 
 ## Data formats
 PMTAF uses [cern-root native file format](https://root.cern/manual/root_files/) with commonly used appendix `.root`. Storeable object insides a root files can be [TTree](https://root.cern.ch/doc/master/classTTree.html) which contains events - columnar data entries with custom structure - [TBranches](https://root.cern.ch/doc/master/classTBranch.html).
@@ -114,10 +114,25 @@ Notes:
 Some branche names has suffix (e.g. `time_ns` => `ns`) which defines physical units. If physical quantity has not such suffix, than is is format dependat (e.g. `date` and `time`), integer (e.g. `i_seg`) or uses default SI units (e.g. `amplitude`, `energy` - Volts)
 
 ## Modules
+In the following passage a functionality and **required** parametrs for all **PMTAF** modules is present. 
+
+Please note, that majority of them uses parameter `input_file` and/or `output_file` that refers to `.root` files, native to **PMTAF**.
+### osclec_converter
+Converts signal data from output format of osciloscope LeCroy WaveMaster to `.root` file.
+#### Parameters:
+- `rawdata_directory`: input files directory path
+- `output_file`
+- `invert_polarity` (false/true): inverts signal polarity
+- `threshold`: threshold applied on (inverted if above holds true) signal max value, to filter out waveforms bellow defined threshold and dnot writing the to output file
+
+### infn_converter
+Converts events data from output format of INFN electronic to `.root` file.
+#### Parameters:
+- `csvdata_file`: path to input file
+- `output_file`
+
+### pulse_cfd_analysis
 
 
-
-
-
-# WORK IN PROGRESS
+# ---WORK IN PROGRESS---
 
