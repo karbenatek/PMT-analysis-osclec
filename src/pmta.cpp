@@ -486,6 +486,27 @@ private:
     }
   }
 
+  void runTTSFit() {
+    TDirectory *InputRootDir;
+    TDirectory *OutputRootDir;
+
+    toml::table MeasurementNames = *cfg["tts_fit"].as_table();
+
+    for (const auto &element : MeasurementNames) {
+      // parse parameters
+      std::string MeasurementName = element.first.data();
+      toml::table ParameterTable = *element.second.as_table();
+      // attach i/o TDirectories
+      InputRootDir = getDir(MeasurementName, ParameterTable, false);
+      OutputRootDir = getDir(MeasurementName, ParameterTable, true);
+      std::string HistName = toml::getString(ParameterTable, "hist_name");
+
+      FitExGauss(InputRootDir, OutputRootDir, HistName);
+      InputRootDir->GetFile()->Close();
+      OutputRootDir->GetFile()->Close();
+    }
+  }
+
   void getDarkRate() {
     toml::table MeasurementNames = *cfg["darkrate"].as_table();
     TDirectory *spRootDir;
@@ -570,6 +591,7 @@ private:
          {2, [this]() { this->runAfterPulseAnalysis(); }}},
         {"spe_fit", {3, [this]() { this->runSinglephotonFit(); }}},
         {"gauss_fit", {4, [this]() { this->runGaussFit(); }}},
+        {"tts_fit", {4, [this]() { this->runTTSFit(); }}},
         {"gauss_from_right_fit",
          {4, [this]() { this->runGaussFromRightFit(); }}},
         {"darkrate", {4, [this]() { this->getDarkRate(); }}},

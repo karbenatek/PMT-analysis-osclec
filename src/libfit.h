@@ -9,7 +9,8 @@ void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
 
 void FitGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
               std::string HistName);
-
+void FitExGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
+                std::string HistName);
 void FitRightGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
                    std::string HistName, Int_t nSmooth);
 

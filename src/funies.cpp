@@ -1,3 +1,4 @@
+#include <RtypesCore.h>
 #include <TMath.h>
 
 namespace funies {
@@ -127,6 +128,22 @@ Double_t Fun_mu(Double_t *x, Double_t *par) {
                     (2 * n * TMath::Power(sig1, 2)));
   }
 
+  return f;
+}
+
+Double_t ExGauss(Double_t *x, Double_t *par) {
+  Double_t t = x[0];
+  Double_t K = par[0];
+  Double_t lamb = par[1];
+
+  Double_t mu = par[2];
+  Double_t sig = par[3];
+
+  Double_t f =
+      .5 * K *
+      TMath::Exp(-lamb * (t - mu) + .5 * TMath::Sq(lamb) * TMath::Sq(sig)) *
+      (1 + TMath::Erf((t - mu - lamb * TMath::Sq(sig)) /
+                      (TMath::Sqrt2() * TMath::Pi())));
   return f;
 }
 } // namespace funies

@@ -731,7 +731,8 @@ void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
   TH1F *h_dQ = (TH1F *)h_Q->Clone("h_dQ"); // diferencial
 
   findPeakValey(h_Q0, h_Qs, h_dQ, pts, prepPars, n_smooth, n_smooth);
-
+  Float_t PVratio = h_Q0->GetBinContent(pts->vi_Qpeak->at(0)) /
+                    h_Q0->GetBinContent(pts->vi_Qvaley->at(0));
   // Draw peaks and valyes on smoothed histogram
   TCanvas *c_ei =
       new TCanvas("c", "Extremes and inflection points", 1000, 1400);
@@ -873,6 +874,7 @@ void FitSPE(TDirectory *inputRootDir, TDirectory *outputRootDir,
     outputRootDir->WriteObject(&parval,
                                BestFitResult.GetParameterName(i).c_str());
   }
+  SavePar(outputRootDir, PVratio, "pv_ratio");
 }
 
 TF1 *getExp_Gauss(Double_t xmax) {
@@ -1027,4 +1029,31 @@ void FitRightGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
                .c_str());
 
   // rootDir->WriteObject(f, rootDir->GetName());
+}
+
+void FitExGauss(TDirectory *inputRootDir, TDirectory *outputRootDir,
+                std::string HistName) {
+  TCanvas *c = new TCanvas();
+  // inputRootDir->ls();
+
+  TH1 *Hist = LoadHist<TH1>(inputRootDir, HistName);
+
+  // TF1 *f2 = new TF1("Gauss", "gaus");
+  TF1 *f = new TF1("ExGauss", funies::ExGauss, 0, 0, 4);
+
+  f->SetParameter(0, Hist->GetMaximum());     // A
+  f->SetParameter(1, 1. / Hist->GetStdDev()); // lamb
+  f->SetParameter(3, Hist->GetMean());        // mu
+  f->SetParameter(4, Hist->GetStdDev());      // sig
+  Hist->Fit(f, "Q", "");
+  Hist->Draw("same");
+  // c->SetLogy();
+  c->Print(addAppendixToRelativeFilePath("_" + HistName + "ExGauss_fit.pdf",
+                                         outputRootDir)
+               .c_str());
+
+  SavePar(outputRootDir, f->GetParameter(0), "A");
+  SavePar(outputRootDir, f->GetParameter(1), "lamb");
+  SavePar(outputRootDir, f->GetParameter(2), "mu");
+  SavePar(outputRootDir, f->GetParameter(3), "sig");
 }
